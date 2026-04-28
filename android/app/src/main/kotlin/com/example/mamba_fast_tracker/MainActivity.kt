@@ -1,4 +1,4 @@
-package com.example.mamba_fast_tracker
+package com.example.mambafasttracker
 
 import io.flutter.embedding.android.FlutterActivity
 
