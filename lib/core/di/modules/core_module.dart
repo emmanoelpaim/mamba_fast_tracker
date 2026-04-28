@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
@@ -7,6 +8,7 @@ import 'package:get_it/get_it.dart';
 import 'package:mamba_fast_tracker/core/feature_flags/feature_flags_service.dart';
 import 'package:mamba_fast_tracker/core/telemetry/analytics_service.dart';
 import 'package:mamba_fast_tracker/core/telemetry/error_reporter.dart';
+import 'package:mamba_fast_tracker/core/notifications/fasting_end_notification_scheduler.dart';
 import 'package:mamba_fast_tracker/core/theme/theme_cubit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -38,5 +40,11 @@ Future<void> registerCoreModule(GetIt sl) async {
     )
     ..registerFactory(() => ThemeCubit(sl()))
     ..registerLazySingleton<FirebaseAuth>(() => FirebaseAuth.instance)
-    ..registerLazySingleton<FirebaseFirestore>(() => firebaseFirestore);
+    ..registerLazySingleton<FirebaseFirestore>(() => firebaseFirestore)
+    ..registerLazySingleton<FlutterLocalNotificationsPlugin>(
+      () => FlutterLocalNotificationsPlugin(),
+    )
+    ..registerLazySingleton<FastingEndNotificationScheduler>(
+      () => FastingEndNotificationScheduler(sl()),
+    );
 }

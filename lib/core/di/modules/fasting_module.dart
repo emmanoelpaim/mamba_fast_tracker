@@ -1,4 +1,5 @@
 import 'package:get_it/get_it.dart';
+import 'package:mamba_fast_tracker/core/notifications/fasting_end_notification_scheduler.dart';
 import 'package:mamba_fast_tracker/features/fasting/data/datasources/fasting_local_data_source.dart';
 import 'package:mamba_fast_tracker/features/fasting/data/datasources/fasting_remote_data_source.dart';
 import 'package:mamba_fast_tracker/features/fasting/data/datasources/firebase_fasting_remote_data_source.dart';
@@ -25,6 +26,7 @@ void registerFastingModule(GetIt sl) {
     ..registerFactory(
       () => FastingBloc(
         fastingRepository: sl(),
+        endNotificationScheduler: sl<FastingEndNotificationScheduler>(),
       ),
     );
 }
