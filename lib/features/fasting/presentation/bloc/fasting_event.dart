@@ -40,3 +40,7 @@ class FastingStopped extends FastingEvent {
 class FastingTicked extends FastingEvent {
   const FastingTicked();
 }
+
+class FastingAlignNotifications extends FastingEvent {
+  const FastingAlignNotifications();
+}

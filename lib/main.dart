@@ -11,6 +11,7 @@ import 'package:mamba_fast_tracker/core/feature_flags/feature_flags_service.dart
 import 'package:mamba_fast_tracker/core/theme/theme_cubit.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:mamba_fast_tracker/features/fasting/presentation/bloc/fasting_bloc.dart';
+import 'package:mamba_fast_tracker/features/fasting/presentation/bloc/fasting_event.dart';
 import 'package:mamba_fast_tracker/firebase_options.dart';
 
 Future<void> main() async {
@@ -36,7 +37,8 @@ class AppBootstrap extends StatefulWidget {
   State<AppBootstrap> createState() => _AppBootstrapState();
 }
 
-class _AppBootstrapState extends State<AppBootstrap> {
+class _AppBootstrapState extends State<AppBootstrap>
+    with WidgetsBindingObserver {
   late final AuthBloc _authBloc;
   late final FastingBloc _fastingBloc;
   late final ThemeCubit _themeCubit;
@@ -45,6 +47,7 @@ class _AppBootstrapState extends State<AppBootstrap> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _themeCubit = sl<ThemeCubit>()..load();
     _authBloc = sl<AuthBloc>();
     _fastingBloc = sl<FastingBloc>();
@@ -59,10 +62,19 @@ class _AppBootstrapState extends State<AppBootstrap> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _themeCubit.close();
     _authBloc.close();
     _fastingBloc.close();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _fastingBloc.add(const FastingTicked());
+      _fastingBloc.add(const FastingAlignNotifications());
+    }
   }
 
   @override

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:bloc/bloc.dart';
 import 'package:mamba_fast_tracker/core/error/failure.dart';
+import 'package:mamba_fast_tracker/core/notifications/fasting_end_notification_scheduler.dart';
 import 'package:mamba_fast_tracker/features/fasting/domain/entities/fasting_session.dart';
 import 'package:mamba_fast_tracker/features/fasting/domain/repositories/fasting_repository.dart';
 import 'package:mamba_fast_tracker/features/fasting/presentation/bloc/fasting_event.dart';
@@ -10,7 +11,9 @@ import 'package:mamba_fast_tracker/features/fasting/presentation/bloc/fasting_st
 class FastingBloc extends Bloc<FastingEvent, FastingState> {
   FastingBloc({
     required FastingRepository fastingRepository,
+    required FastingEndNotificationScheduler endNotificationScheduler,
   })  : _fastingRepository = fastingRepository,
+        _endNotificationScheduler = endNotificationScheduler,
         super(FastingState.initial()) {
     on<FastingInitialized>(_onInitialized);
     on<FastingProtocolSelected>(_onProtocolSelected);
@@ -19,9 +22,11 @@ class FastingBloc extends Bloc<FastingEvent, FastingState> {
     on<FastingResumed>(_onResumed);
     on<FastingStopped>(_onStopped);
     on<FastingTicked>(_onTicked);
+    on<FastingAlignNotifications>(_onAlignNotifications);
   }
 
   final FastingRepository _fastingRepository;
+  final FastingEndNotificationScheduler _endNotificationScheduler;
   Timer? _ticker;
 
   Future<void> _onInitialized(
@@ -42,6 +47,7 @@ class FastingBloc extends Bloc<FastingEvent, FastingState> {
       );
       _startTickerIfNeeded();
       add(const FastingTicked());
+      await _endNotificationScheduler.syncSchedule(state);
     } on Failure catch (e) {
       emit(state.copyWith(isLoading: false, errorMessage: e.message));
     }
@@ -62,6 +68,7 @@ class FastingBloc extends Bloc<FastingEvent, FastingState> {
           errorMessage: '',
         ),
       );
+      await _endNotificationScheduler.syncSchedule(state);
     } on Failure catch (e) {
       emit(state.copyWith(errorMessage: e.message));
     }
@@ -81,6 +88,7 @@ class FastingBloc extends Bloc<FastingEvent, FastingState> {
     await _fastingRepository.saveSession(session);
     emit(state.copyWith(session: session, nowUtc: now, errorMessage: ''));
     _startTickerIfNeeded();
+    await _endNotificationScheduler.syncSchedule(state);
   }
 
   Future<void> _onPaused(
@@ -96,6 +104,7 @@ class FastingBloc extends Bloc<FastingEvent, FastingState> {
     await _fastingRepository.saveSession(session);
     emit(state.copyWith(session: session, nowUtc: now, errorMessage: ''));
     _stopTicker();
+    await _endNotificationScheduler.syncSchedule(state);
   }
 
   Future<void> _onResumed(
@@ -119,6 +128,7 @@ class FastingBloc extends Bloc<FastingEvent, FastingState> {
     await _fastingRepository.saveSession(session);
     emit(state.copyWith(session: session, nowUtc: now, errorMessage: ''));
     _startTickerIfNeeded();
+    await _endNotificationScheduler.syncSchedule(state);
   }
 
   Future<void> _onStopped(
@@ -138,6 +148,7 @@ class FastingBloc extends Bloc<FastingEvent, FastingState> {
       ),
     );
     _stopTicker();
+    await _endNotificationScheduler.syncSchedule(state);
   }
 
   Future<void> _onTicked(
@@ -154,7 +165,15 @@ class FastingBloc extends Bloc<FastingEvent, FastingState> {
       await _fastingRepository.saveSession(completed);
       emit(state.copyWith(session: completed));
       _stopTicker();
+      await _endNotificationScheduler.syncSchedule(state);
     }
+  }
+
+  Future<void> _onAlignNotifications(
+    FastingAlignNotifications event,
+    Emitter<FastingState> emit,
+  ) async {
+    await _endNotificationScheduler.syncSchedule(state);
   }
 
   void _startTickerIfNeeded() {
