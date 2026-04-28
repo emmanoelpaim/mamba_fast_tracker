@@ -10,6 +10,7 @@ import 'package:mamba_fast_tracker/core/di/injection_container.dart';
 import 'package:mamba_fast_tracker/core/feature_flags/feature_flags_service.dart';
 import 'package:mamba_fast_tracker/core/theme/theme_cubit.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:mamba_fast_tracker/features/fasting/presentation/bloc/fasting_bloc.dart';
 import 'package:mamba_fast_tracker/firebase_options.dart';
 
 Future<void> main() async {
@@ -37,6 +38,7 @@ class AppBootstrap extends StatefulWidget {
 
 class _AppBootstrapState extends State<AppBootstrap> {
   late final AuthBloc _authBloc;
+  late final FastingBloc _fastingBloc;
   late final ThemeCubit _themeCubit;
   late final RouterConfig<Object> _routerConfig;
 
@@ -45,6 +47,7 @@ class _AppBootstrapState extends State<AppBootstrap> {
     super.initState();
     _themeCubit = sl<ThemeCubit>()..load();
     _authBloc = sl<AuthBloc>();
+    _fastingBloc = sl<FastingBloc>();
     _routerConfig = createRouter(
       _authBloc,
       featureFlagsService: sl<FeatureFlagsService>(),
@@ -58,6 +61,7 @@ class _AppBootstrapState extends State<AppBootstrap> {
   void dispose() {
     _themeCubit.close();
     _authBloc.close();
+    _fastingBloc.close();
     super.dispose();
   }
 
@@ -66,6 +70,7 @@ class _AppBootstrapState extends State<AppBootstrap> {
     return MultiBlocProvider(
       providers: [
         BlocProvider.value(value: _authBloc),
+        BlocProvider.value(value: _fastingBloc),
         BlocProvider.value(value: _themeCubit),
       ],
       child: BlocBuilder<ThemeCubit, ThemeMode>(

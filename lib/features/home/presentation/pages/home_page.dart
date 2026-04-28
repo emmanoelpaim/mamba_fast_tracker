@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mamba_fast_tracker/core/theme/theme_cubit.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_event.dart';
+import 'package:mamba_fast_tracker/features/fasting/presentation/pages/fasting_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({required this.enableDarkModeMenu, super.key});
@@ -70,7 +71,7 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final tabs = [
       _buildSettingsTab(context),
-      _buildPlaceholder('Jejum'),
+      const FastingPage(),
       _buildPlaceholder('Início'),
       _buildPlaceholder('Registro de refeições'),
       _buildPlaceholder('Histórico'),
