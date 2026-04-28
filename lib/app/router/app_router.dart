@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import 'package:mamba_fast_tracker/app/router/go_router_refresh_stream.dart';
 import 'package:mamba_fast_tracker/app/router/router_guard.dart';
 import 'package:mamba_fast_tracker/core/feature_flags/feature_flags_service.dart';
-import 'package:mamba_fast_tracker/features/auth/domain/repositories/auth_repository.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/pages/login_page.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/pages/recover_pass_page.dart';
@@ -14,7 +13,6 @@ import 'package:mamba_fast_tracker/features/home/presentation/pages/home_page.da
 GoRouter createRouter(
   AuthBloc authBloc, {
   required FeatureFlagsService featureFlagsService,
-  required AuthRepository authRepository,
   List<NavigatorObserver> observers = const [],
 }) {
   return GoRouter(
@@ -51,7 +49,6 @@ GoRouter createRouter(
         path: '/home',
         builder: (context, state) => HomePage(
           enableDarkModeMenu: featureFlagsService.enableDarkModeMenu,
-          authRepository: authRepository,
         ),
       ),
     ],
