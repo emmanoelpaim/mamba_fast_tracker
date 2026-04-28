@@ -1,0 +1,25 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flutter Mobile (Auto)",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "debug"
+    },
+    {
+      "name": "Flutter Android",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "android",
+      "flutterMode": "debug"
+    },
+    {
+      "name": "Flutter iOS",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "ios",
+      "flutterMode": "debug"
+    }
+  ]
+}
