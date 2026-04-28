@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:mamba_fast_tracker/core/di/injection_container.dart';
-import 'package:mamba_fast_tracker/core/feature_flags/feature_flags_service.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_event.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_state.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/widgets/auth_toast.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  const LoginPage({
+    required this.enableRecoverPassword,
+    super.key,
+  });
+
+  final bool enableRecoverPassword;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -28,7 +31,6 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final flags = sl<FeatureFlagsService>();
     return Scaffold(
       appBar: AppBar(title: const Text('Login')),
       body: BlocConsumer<AuthBloc, AuthState>(
@@ -75,7 +77,7 @@ class _LoginPageState extends State<LoginPage> {
                   onPressed: () => context.go('/register'),
                   child: const Text('Criar conta'),
                 ),
-                if (flags.enableRecoverPassword)
+                if (widget.enableRecoverPassword)
                   TextButton(
                     onPressed: () => context.go('/recover'),
                     child: const Text('Recuperar senha'),

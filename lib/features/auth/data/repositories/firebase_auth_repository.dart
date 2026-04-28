@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:mamba_fast_tracker/core/error/failure.dart';
 import 'package:mamba_fast_tracker/features/auth/data/datasources/auth_remote_data_source.dart';
 import 'package:mamba_fast_tracker/features/auth/data/datasources/user_profile_local_data_source.dart';
@@ -17,6 +19,7 @@ class FirebaseAuthRepository implements AuthRepository {
   final AuthRemoteDataSource _authRemoteDataSource;
   final UserProfileRemoteDataSource _userProfileRemoteDataSource;
   final UserProfileLocalDataSource _userProfileLocalDataSource;
+  static const _maxRetryAttempts = 3;
 
   AuthFailure _mapSignUpFailure(DataFailure failure) {
     switch (failure.code) {
@@ -51,6 +54,35 @@ class FirebaseAuthRepository implements AuthRepository {
     }
   }
 
+  bool _shouldRetry(Failure failure) {
+    return failure.code == 'network-request-failed' ||
+        failure.code == 'unavailable' ||
+        failure.code == 'timeout';
+  }
+
+  Future<T> _runWithRetry<T>(
+    Future<T> Function() operation,
+  ) async {
+    Failure? lastFailure;
+    for (var attempt = 0; attempt < _maxRetryAttempts; attempt++) {
+      try {
+        return await operation();
+      } on Failure catch (failure) {
+        lastFailure = failure;
+        if (!_shouldRetry(failure) || attempt == _maxRetryAttempts - 1) {
+          rethrow;
+        }
+        final delay = Duration(milliseconds: 300 * (attempt + 1));
+        await Future<void>.delayed(delay);
+      }
+    }
+    throw lastFailure ??
+        const DataFailure(
+          message: 'Falha em operacao com retry',
+          code: 'retry-failed',
+        );
+  }
+
   @override
   Stream<AuthStatus> authStatusChanges() {
     return _authRemoteDataSource.authStateChanges().map(
@@ -82,9 +114,11 @@ class FirebaseAuthRepository implements AuthRepository {
     required String email,
     required String password,
   }) async {
-    await _authRemoteDataSource.signIn(
-      email: email,
-      password: password,
+    await _runWithRetry(
+      () => _authRemoteDataSource.signIn(
+        email: email,
+        password: password,
+      ),
     );
   }
 
@@ -96,9 +130,11 @@ class FirebaseAuthRepository implements AuthRepository {
   }) async {
     final normalizedName = name.trim();
     final normalizedEmail = email.trim();
-    final credential = await _authRemoteDataSource.signUp(
-      email: normalizedEmail,
-      password: password,
+    final credential = await _runWithRetry(
+      () => _authRemoteDataSource.signUp(
+        email: normalizedEmail,
+        password: password,
+      ),
     );
     final user = credential.user;
     if (user == null) {
@@ -113,10 +149,12 @@ class FirebaseAuthRepository implements AuthRepository {
       name: normalizedName,
     );
     try {
-      await _userProfileRemoteDataSource.createProfile(
-        uid: user.uid,
-        name: normalizedName,
-        email: normalizedEmail,
+      await _runWithRetry(
+        () => _userProfileRemoteDataSource.createProfile(
+          uid: user.uid,
+          name: normalizedName,
+          email: normalizedEmail,
+        ),
       );
       await _userProfileLocalDataSource.cacheProfile(appUser);
     } on DataFailure catch (e) {
@@ -130,11 +168,13 @@ class FirebaseAuthRepository implements AuthRepository {
 
   @override
   Future<void> recoverPassword({required String email}) async {
-    await _authRemoteDataSource.sendPasswordResetEmail(email: email);
+    await _runWithRetry(
+      () => _authRemoteDataSource.sendPasswordResetEmail(email: email),
+    );
   }
 
   @override
   Future<void> signOut() async {
-    await _authRemoteDataSource.signOut();
+    await _runWithRetry(_authRemoteDataSource.signOut);
   }
 }

@@ -18,13 +18,14 @@ class _SplashPageState extends State<SplashPage> {
   @override
   void initState() {
     super.initState();
-    _initializeFlagsAndAuth();
+    context.read<AuthBloc>().add(const AuthStarted());
+    _initializeFlags();
   }
 
-  Future<void> _initializeFlagsAndAuth() async {
+  Future<void> _initializeFlags() async {
     final flagsService = sl<FeatureFlagsService>();
     try {
-      await flagsService.initialize();
+      await flagsService.warmUp();
       debugPrint(
         '[Splash][RemoteConfig] hasRequiredFlags=${flagsService.hasRequiredFlags} '
         'enable_dark_mode_menu=${flagsService.enableDarkModeMenu} '
@@ -46,10 +47,6 @@ class _SplashPageState extends State<SplashPage> {
         setState(() {
           _errorMessage = 'Falha ao carregar Remote Config. Usando valores padrao.';
         });
-      }
-    } finally {
-      if (mounted) {
-        context.read<AuthBloc>().add(const AuthStarted());
       }
     }
   }

@@ -1,8 +1,9 @@
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mamba_fast_tracker/app/router/go_router_refresh_stream.dart';
 import 'package:mamba_fast_tracker/app/router/router_guard.dart';
+import 'package:mamba_fast_tracker/core/feature_flags/feature_flags_service.dart';
+import 'package:mamba_fast_tracker/features/auth/domain/repositories/auth_repository.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/pages/login_page.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/pages/recover_pass_page.dart';
@@ -12,6 +13,8 @@ import 'package:mamba_fast_tracker/features/home/presentation/pages/home_page.da
 
 GoRouter createRouter(
   AuthBloc authBloc, {
+  required FeatureFlagsService featureFlagsService,
+  required AuthRepository authRepository,
   List<NavigatorObserver> observers = const [],
 }) {
   return GoRouter(
@@ -19,7 +22,7 @@ GoRouter createRouter(
     observers: observers,
     refreshListenable: GoRouterRefreshStream(authBloc.stream),
     redirect: (context, state) {
-      final authState = context.read<AuthBloc>().state;
+      final authState = authBloc.state;
       return resolveRedirect(
         status: authState.status,
         location: state.matchedLocation,
@@ -32,7 +35,9 @@ GoRouter createRouter(
       ),
       GoRoute(
         path: '/login',
-        builder: (context, state) => const LoginPage(),
+        builder: (context, state) => LoginPage(
+          enableRecoverPassword: featureFlagsService.enableRecoverPassword,
+        ),
       ),
       GoRoute(
         path: '/register',
@@ -44,7 +49,10 @@ GoRouter createRouter(
       ),
       GoRoute(
         path: '/home',
-        builder: (context, state) => const HomePage(),
+        builder: (context, state) => HomePage(
+          enableDarkModeMenu: featureFlagsService.enableDarkModeMenu,
+          authRepository: authRepository,
+        ),
       ),
     ],
   );

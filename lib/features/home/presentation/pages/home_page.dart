@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:mamba_fast_tracker/core/di/injection_container.dart';
-import 'package:mamba_fast_tracker/core/feature_flags/feature_flags_service.dart';
 import 'package:mamba_fast_tracker/core/theme/theme_cubit.dart';
 import 'package:mamba_fast_tracker/features/auth/domain/entities/app_user.dart';
 import 'package:mamba_fast_tracker/features/auth/domain/repositories/auth_repository.dart';
@@ -9,17 +7,22 @@ import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_bloc.dar
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_event.dart';
 
 class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+  const HomePage({
+    required this.enableDarkModeMenu,
+    required this.authRepository,
+    super.key,
+  });
+
+  final bool enableDarkModeMenu;
+  final AuthRepository authRepository;
 
   @override
   Widget build(BuildContext context) {
-    final flags = sl<FeatureFlagsService>();
-    final authRepository = sl<AuthRepository>();
     return Scaffold(
       appBar: AppBar(
         title: const Text('Home'),
         actions: [
-          if (flags.enableDarkModeMenu)
+          if (enableDarkModeMenu)
             PopupMenuButton<ThemeMode>(
               onSelected: (mode) => context.read<ThemeCubit>().setThemeMode(mode),
               itemBuilder: (context) => const [

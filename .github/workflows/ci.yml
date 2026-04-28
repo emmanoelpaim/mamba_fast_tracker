@@ -15,7 +15,22 @@ jobs:
           channel: stable
       - name: Install dependencies
         run: flutter pub get
+      - name: Format check
+        run: dart format --set-exit-if-changed .
       - name: Analyze
         run: flutter analyze
-      - name: Test
-        run: flutter test
+      - name: Test with coverage
+        run: flutter test --coverage
+      - name: Coverage gate
+        run: |
+          python -c "import re,sys; t=0; h=0
+for l in open('coverage/lcov.info', encoding='utf-8'):
+    if l.startswith('DA:'):
+        p=l.strip().split(':',1)[1].split(',')
+        t+=1
+        h+=int(p[1])>0
+c=(h*100.0/t) if t else 0.0
+print(f'Coverage: {c:.2f}%')
+sys.exit(0 if c>=60.0 else 1)"
+      - name: Build Android APK
+        run: flutter build apk --debug

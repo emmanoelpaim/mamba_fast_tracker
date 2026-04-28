@@ -7,7 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mamba_fast_tracker/app/router/app_router.dart';
 import 'package:mamba_fast_tracker/core/di/injection_container.dart';
+import 'package:mamba_fast_tracker/core/feature_flags/feature_flags_service.dart';
 import 'package:mamba_fast_tracker/core/theme/theme_cubit.dart';
+import 'package:mamba_fast_tracker/features/auth/domain/repositories/auth_repository.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:mamba_fast_tracker/firebase_options.dart';
 
@@ -46,6 +48,8 @@ class _AppBootstrapState extends State<AppBootstrap> {
     _authBloc = sl<AuthBloc>();
     _routerConfig = createRouter(
       _authBloc,
+      featureFlagsService: sl<FeatureFlagsService>(),
+      authRepository: sl<AuthRepository>(),
       observers: [
         FirebaseAnalyticsObserver(analytics: sl<FirebaseAnalytics>()),
       ],

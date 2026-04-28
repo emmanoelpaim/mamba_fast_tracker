@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart';
 
@@ -7,8 +9,10 @@ class FeatureFlagsService {
   final FirebaseRemoteConfig _remoteConfig;
   static const _enableDarkModeMenuKey = 'enable_dark_mode_menu';
   static const _enableRecoverPasswordKey = 'enable_recover_password';
+  var _isConfigured = false;
 
-  Future<void> initialize() async {
+  Future<void> configure() async {
+    if (_isConfigured) return;
     await _remoteConfig.setConfigSettings(
       RemoteConfigSettings(
         fetchTimeout: const Duration(seconds: 10),
@@ -21,7 +25,28 @@ class FeatureFlagsService {
       _enableDarkModeMenuKey: false,
       _enableRecoverPasswordKey: false,
     });
+    _isConfigured = true;
+  }
+
+  Future<void> initialize() async {
+    await configure();
     await _remoteConfig.fetchAndActivate();
+  }
+
+  Future<void> warmUp({
+    Duration timeout = const Duration(seconds: 3),
+  }) async {
+    await configure();
+    try {
+      await _remoteConfig.fetchAndActivate().timeout(timeout);
+    } catch (_) {}
+  }
+
+  Future<void> refreshInBackground() async {
+    await configure();
+    unawaited(
+      _remoteConfig.fetchAndActivate().catchError((_) => false),
+    );
   }
 
   bool get enableDarkModeMenu => _remoteConfig.getBool(_enableDarkModeMenuKey);
