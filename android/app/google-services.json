@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "145111207624",
+    "project_id": "mambafasttracker",
+    "storage_bucket": "mambafasttracker.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:145111207624:android:a964464b858cc8d20f1ffd",
+        "android_client_info": {
+          "package_name": "com.example.mambafasttracker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAqMkfFJ4-eij2Xh_91SogXFLKlTi39bJQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
