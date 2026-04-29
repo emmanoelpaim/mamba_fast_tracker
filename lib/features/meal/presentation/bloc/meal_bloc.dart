@@ -42,38 +42,41 @@ class MealBloc extends Bloc<MealEvent, MealState> {
       calories: event.calories,
       createdAtUtc: DateTime.now().toUtc(),
     );
+    emit(state.copyWith(isLoading: true, errorMessage: ''));
     try {
       final updated = await _mealRepository.saveMeal(meal);
-      emit(state.copyWith(meals: updated, errorMessage: ''));
+      emit(state.copyWith(isLoading: false, meals: updated, errorMessage: ''));
       await _analyticsService.logEvent(
         name: 'meal_added',
         parameters: {'calories': meal.calories},
       );
     } on Failure catch (e) {
-      emit(state.copyWith(errorMessage: e.message));
+      emit(state.copyWith(isLoading: false, errorMessage: e.message));
     }
   }
 
   Future<void> _onUpdated(MealUpdated event, Emitter<MealState> emit) async {
+    emit(state.copyWith(isLoading: true, errorMessage: ''));
     try {
       final updated = await _mealRepository.updateMeal(event.meal);
-      emit(state.copyWith(meals: updated, errorMessage: ''));
+      emit(state.copyWith(isLoading: false, meals: updated, errorMessage: ''));
       await _analyticsService.logEvent(
         name: 'meal_updated',
         parameters: {'calories': event.meal.calories},
       );
     } on Failure catch (e) {
-      emit(state.copyWith(errorMessage: e.message));
+      emit(state.copyWith(isLoading: false, errorMessage: e.message));
     }
   }
 
   Future<void> _onDeleted(MealDeleted event, Emitter<MealState> emit) async {
+    emit(state.copyWith(isLoading: true, errorMessage: ''));
     try {
       final updated = await _mealRepository.deleteMeal(event.id);
-      emit(state.copyWith(meals: updated, errorMessage: ''));
+      emit(state.copyWith(isLoading: false, meals: updated, errorMessage: ''));
       await _analyticsService.logEvent(name: 'meal_deleted');
     } on Failure catch (e) {
-      emit(state.copyWith(errorMessage: e.message));
+      emit(state.copyWith(isLoading: false, errorMessage: e.message));
     }
   }
 }

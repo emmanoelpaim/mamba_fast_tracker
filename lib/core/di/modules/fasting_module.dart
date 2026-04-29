@@ -21,6 +21,9 @@ void registerFastingModule(GetIt sl) {
         authRemoteDataSource: sl(),
         localDataSource: sl(),
         remoteDataSource: sl(),
+        analyticsService: sl(),
+        errorReporter: sl(),
+        preferences: sl(),
       ),
     )
     ..registerFactory(

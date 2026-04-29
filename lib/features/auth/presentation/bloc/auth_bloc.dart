@@ -23,14 +23,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     required SignOutUseCase signOutUseCase,
     required AnalyticsService analyticsService,
     required ErrorReporter errorReporter,
-  })  : _observeAuthStateUseCase = observeAuthStateUseCase,
-        _signInUseCase = signInUseCase,
-        _signUpUseCase = signUpUseCase,
-        _recoverPasswordUseCase = recoverPasswordUseCase,
-        _signOutUseCase = signOutUseCase,
-        _analyticsService = analyticsService,
-        _errorReporter = errorReporter,
-        super(AuthState.initial) {
+  }) : _observeAuthStateUseCase = observeAuthStateUseCase,
+       _signInUseCase = signInUseCase,
+       _signUpUseCase = signUpUseCase,
+       _recoverPasswordUseCase = recoverPasswordUseCase,
+       _signOutUseCase = signOutUseCase,
+       _analyticsService = analyticsService,
+       _errorReporter = errorReporter,
+       super(AuthState.initial) {
     on<AuthStarted>(_onStarted);
     on<AuthStatusChanged>(_onAuthStatusChanged);
     on<AuthLoginRequested>(_onLoginRequested);
@@ -51,9 +51,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   Future<void> _onStarted(AuthStarted event, Emitter<AuthState> emit) async {
     await _authSubscription?.cancel();
     _authSubscription = _observeAuthStateUseCase().listen(
-      (status) => add(
-        AuthStatusChanged(status == AuthStatus.authenticated),
-      ),
+      (status) => add(AuthStatusChanged(status == AuthStatus.authenticated)),
     );
   }
 
@@ -92,10 +90,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         parameters: {'error_code': e.code},
       );
       emit(
-        state.copyWith(
-          status: AuthFlowStatus.error,
-          errorMessage: e.message,
-        ),
+        state.copyWith(status: AuthFlowStatus.error, errorMessage: e.message),
       );
     } catch (error, stackTrace) {
       debugPrint('[AUTH][LOGIN][ERRO] Falha inesperada no login');
@@ -141,10 +136,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         parameters: {'error_code': e.code},
       );
       emit(
-        state.copyWith(
-          status: AuthFlowStatus.error,
-          errorMessage: e.message,
-        ),
+        state.copyWith(status: AuthFlowStatus.error, errorMessage: e.message),
       );
     } catch (error, stackTrace) {
       debugPrint('[AUTH][CADASTRO][ERRO] Falha inesperada no cadastro');
@@ -174,7 +166,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     );
     try {
       await _recoverPasswordUseCase(email: event.email);
-      debugPrint('[AUTH][RECOVER] Email de recuperação de senha enviado: ${event.email}');
+      debugPrint(
+        '[AUTH][RECOVER] Email de recuperação de senha enviado: ${event.email}',
+      );
       await _analyticsService.logEvent(
         name: 'auth_recover_success',
         parameters: {'email_domain': _emailDomain(event.email)},
@@ -192,10 +186,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         parameters: {'error_code': e.code},
       );
       emit(
-        state.copyWith(
-          status: AuthFlowStatus.error,
-          errorMessage: e.message,
-        ),
+        state.copyWith(status: AuthFlowStatus.error, errorMessage: e.message),
       );
     } catch (error, stackTrace) {
       debugPrint('[AUTH][RECOVER][ERRO] Falha inesperada ao recuperar senha');
@@ -217,8 +208,27 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthLogoutRequested event,
     Emitter<AuthState> emit,
   ) async {
-    await _signOutUseCase();
-    await _analyticsService.logEvent(name: 'auth_logout_success');
+    emit(state.copyWith(status: AuthFlowStatus.loading, errorMessage: ''));
+    try {
+      await _signOutUseCase();
+      await _analyticsService.logEvent(name: 'auth_logout_success');
+    } on Failure catch (e) {
+      emit(
+        state.copyWith(status: AuthFlowStatus.error, errorMessage: e.message),
+      );
+    } catch (error, stackTrace) {
+      await _errorReporter.recordError(
+        error,
+        stackTrace,
+        reason: 'auth_logout_unexpected',
+      );
+      emit(
+        state.copyWith(
+          status: AuthFlowStatus.error,
+          errorMessage: 'Falha ao sair da conta',
+        ),
+      );
+    }
   }
 
   String _emailDomain(String email) {

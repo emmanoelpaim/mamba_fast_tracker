@@ -12,12 +12,30 @@ class GoalsCubit extends Cubit<GoalsState> {
   final GoalsRepository _goalsRepository;
 
   Future<void> load() async {
-    emit(state.copyWith(isLoading: true, errorMessage: ''));
+    emit(
+      state.copyWith(
+        isLoading: true,
+        errorMessage: '',
+        saveStatus: GoalsSaveFeedback.none,
+      ),
+    );
     try {
       final goals = await _goalsRepository.getGoals();
-      emit(state.copyWith(isLoading: false, goals: goals));
+      emit(
+        state.copyWith(
+          isLoading: false,
+          goals: goals,
+          saveStatus: GoalsSaveFeedback.none,
+        ),
+      );
     } on Failure catch (e) {
-      emit(state.copyWith(isLoading: false, errorMessage: e.message));
+      emit(
+        state.copyWith(
+          isLoading: false,
+          errorMessage: e.message,
+          saveStatus: GoalsSaveFeedback.none,
+        ),
+      );
     }
   }
 
@@ -29,11 +47,35 @@ class GoalsCubit extends Cubit<GoalsState> {
       caloriesGoal: caloriesGoal.clamp(1, 100000),
       fastingHoursGoal: fastingHoursGoal.clamp(1, 72),
     );
+    emit(
+      state.copyWith(
+        isLoading: true,
+        errorMessage: '',
+        saveStatus: GoalsSaveFeedback.none,
+      ),
+    );
     try {
       final saved = await _goalsRepository.saveGoals(normalized);
-      emit(state.copyWith(goals: saved, errorMessage: ''));
+      emit(
+        state.copyWith(
+          isLoading: false,
+          goals: saved.goals,
+          errorMessage: '',
+          saveStatus: GoalsState.mapSaveStatus(saved.status),
+        ),
+      );
     } on Failure catch (e) {
-      emit(state.copyWith(errorMessage: e.message));
+      emit(
+        state.copyWith(
+          isLoading: false,
+          errorMessage: e.message,
+          saveStatus: GoalsSaveFeedback.error,
+        ),
+      );
     }
+  }
+
+  void clearSaveFeedback() {
+    emit(state.copyWith(saveStatus: GoalsSaveFeedback.none));
   }
 }

@@ -60,6 +60,11 @@ class FastingBloc extends Bloc<FastingEvent, FastingState> {
     FastingProtocolSelected event,
     Emitter<FastingState> emit,
   ) async {
+    if (state.session.status == FastingSessionStatus.running ||
+        state.session.status == FastingSessionStatus.paused) {
+      emit(state.copyWith(errorMessage: 'É obrigado a parar o jejum atual'));
+      return;
+    }
     try {
       await _fastingRepository.saveSelectedProtocol(event.protocol);
       final updatedSession = state.session.copyWith(protocol: event.protocol);
@@ -81,18 +86,30 @@ class FastingBloc extends Bloc<FastingEvent, FastingState> {
     FastingStarted event,
     Emitter<FastingState> emit,
   ) async {
-    final now = DateTime.now().toUtc();
-    final session = FastingSession(
-      status: FastingSessionStatus.running,
-      protocol: state.protocol,
-      startedAtUtc: now,
-      totalPausedSeconds: 0,
-    );
-    await _fastingRepository.saveSession(session);
-    emit(state.copyWith(session: session, nowUtc: now, errorMessage: ''));
-    _startTickerIfNeeded();
-    await _endNotificationScheduler.notifyFastingStarted();
-    await _endNotificationScheduler.syncSchedule(state);
+    emit(state.copyWith(isLoading: true, errorMessage: ''));
+    try {
+      final now = DateTime.now().toUtc();
+      final session = FastingSession(
+        status: FastingSessionStatus.running,
+        protocol: state.protocol,
+        startedAtUtc: now,
+        totalPausedSeconds: 0,
+      );
+      await _fastingRepository.saveSession(session);
+      emit(
+        state.copyWith(
+          isLoading: false,
+          session: session,
+          nowUtc: now,
+          errorMessage: '',
+        ),
+      );
+      _startTickerIfNeeded();
+      await _endNotificationScheduler.notifyFastingStarted();
+      await _endNotificationScheduler.syncSchedule(state);
+    } on Failure catch (e) {
+      emit(state.copyWith(isLoading: false, errorMessage: e.message));
+    }
   }
 
   Future<void> _onPaused(
@@ -139,39 +156,45 @@ class FastingBloc extends Bloc<FastingEvent, FastingState> {
     FastingStopped event,
     Emitter<FastingState> emit,
   ) async {
-    final previousSession = state.session;
-    final now = DateTime.now().toUtc();
-    final shouldNotifyEnd =
-        previousSession.status == FastingSessionStatus.running ||
-        previousSession.status == FastingSessionStatus.paused;
-    var nextHistory = state.history;
-    if (shouldNotifyEnd) {
-      nextHistory = await _appendHistoryEntry(
-        session: previousSession,
-        endedAtUtc: now,
+    emit(state.copyWith(isLoading: true, errorMessage: ''));
+    try {
+      final previousSession = state.session;
+      final now = DateTime.now().toUtc();
+      final shouldNotifyEnd =
+          previousSession.status == FastingSessionStatus.running ||
+          previousSession.status == FastingSessionStatus.paused;
+      var nextHistory = state.history;
+      if (shouldNotifyEnd) {
+        nextHistory = await _appendHistoryEntry(
+          session: previousSession,
+          endedAtUtc: now,
+        );
+      }
+      final session = FastingSession(
+        status: FastingSessionStatus.idle,
+        protocol: state.protocol,
       );
+      await _fastingRepository.saveSession(session);
+      if (shouldNotifyEnd) {
+        await _fastingRepository.saveDayHistory(nextHistory);
+      }
+      emit(
+        state.copyWith(
+          isLoading: false,
+          session: session,
+          history: nextHistory,
+          nowUtc: now,
+          errorMessage: '',
+        ),
+      );
+      _stopTicker();
+      if (shouldNotifyEnd) {
+        await _endNotificationScheduler.notifyFastingEnded();
+      }
+      await _endNotificationScheduler.syncSchedule(state);
+    } on Failure catch (e) {
+      emit(state.copyWith(isLoading: false, errorMessage: e.message));
     }
-    final session = FastingSession(
-      status: FastingSessionStatus.idle,
-      protocol: state.protocol,
-    );
-    await _fastingRepository.saveSession(session);
-    if (shouldNotifyEnd) {
-      await _fastingRepository.saveDayHistory(nextHistory);
-    }
-    emit(
-      state.copyWith(
-        session: session,
-        history: nextHistory,
-        nowUtc: now,
-        errorMessage: '',
-      ),
-    );
-    _stopTicker();
-    if (shouldNotifyEnd) {
-      await _endNotificationScheduler.notifyFastingEnded();
-    }
-    await _endNotificationScheduler.syncSchedule(state);
   }
 
   Future<void> _onTicked(

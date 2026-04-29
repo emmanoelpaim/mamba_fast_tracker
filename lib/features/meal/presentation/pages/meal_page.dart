@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mamba_fast_tracker/core/presentation/widgets/screen_blocking_loader.dart';
 import 'package:mamba_fast_tracker/features/meal/domain/entities/meal_entry.dart';
 import 'package:mamba_fast_tracker/features/meal/presentation/bloc/meal_bloc.dart';
 import 'package:mamba_fast_tracker/features/meal/presentation/bloc/meal_event.dart';
@@ -15,38 +16,52 @@ class MealPage extends StatefulWidget {
 
 class _MealPageState extends State<MealPage> {
   @override
-  void initState() {
-    super.initState();
-    context.read<MealBloc>().add(const MealInitialized());
-  }
-
-  @override
   Widget build(BuildContext context) {
     return BlocBuilder<MealBloc, MealState>(
       builder: (context, state) {
         return Scaffold(
-          body: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              if (state.isLoading)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-              if (!state.isLoading && state.meals.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(child: Text('Nenhuma refeição cadastrada.')),
-                ),
-              ...state.meals.map(_mealTile),
-              if (state.errorMessage.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(
-                  state.errorMessage,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              ],
-            ],
+          body: ScreenBlockingLoader(
+            isLoading: state.isLoading,
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount:
+                  (state.meals.isEmpty && !state.isLoading
+                      ? 1
+                      : state.meals.length) +
+                  (state.errorMessage.isNotEmpty ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (state.meals.isEmpty && !state.isLoading) {
+                  if (index == 0) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: Text('Nenhuma refeição cadastrada.'),
+                      ),
+                    );
+                  }
+                  return Text(
+                    state.errorMessage,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  );
+                }
+
+                if (index < state.meals.length) {
+                  return _mealTile(state.meals[index]);
+                }
+
+                return Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Text(
+                    state.errorMessage,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
           floatingActionButton: FloatingActionButton.extended(
             onPressed: () => _showMealDialog(context),

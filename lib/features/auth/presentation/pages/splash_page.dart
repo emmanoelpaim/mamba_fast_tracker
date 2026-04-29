@@ -18,6 +18,14 @@ class _SplashPageState extends State<SplashPage> {
   @override
   void initState() {
     super.initState();
+    _startAppFlow();
+  }
+
+  Future<void> _startAppFlow() async {
+    await Future<void>.delayed(const Duration(seconds: 3));
+    if (!mounted) {
+      return;
+    }
     context.read<AuthBloc>().add(const AuthStarted());
     _initializeFlags();
   }
@@ -51,6 +59,12 @@ class _SplashPageState extends State<SplashPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Image.asset(
+              'assets/images/logo.webp',
+              height: 120,
+              fit: BoxFit.contain,
+            ),
+            const SizedBox(height: 24),
             const CircularProgressIndicator(),
             if (_errorMessage != null) ...[
               const SizedBox(height: 16),

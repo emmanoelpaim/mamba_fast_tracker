@@ -2,11 +2,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mamba_fast_tracker/core/error/failure.dart';
+import 'package:mamba_fast_tracker/core/telemetry/analytics_service.dart';
+import 'package:mamba_fast_tracker/core/telemetry/error_reporter.dart';
 import 'package:mamba_fast_tracker/features/auth/data/datasources/auth_remote_data_source.dart';
 import 'package:mamba_fast_tracker/features/meal/data/datasources/meal_local_data_source.dart';
 import 'package:mamba_fast_tracker/features/meal/data/datasources/meal_remote_data_source.dart';
 import 'package:mamba_fast_tracker/features/meal/data/repositories/firebase_meal_repository.dart';
 import 'package:mamba_fast_tracker/features/meal/domain/entities/meal_entry.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockAuthRemoteDataSource extends Mock implements AuthRemoteDataSource {}
 
@@ -15,11 +18,16 @@ class _MockMealLocalDataSource extends Mock implements MealLocalDataSource {}
 class _MockMealRemoteDataSource extends Mock implements MealRemoteDataSource {}
 
 class _MockUser extends Mock implements User {}
+class _MockAnalyticsService extends Mock implements AnalyticsService {}
+class _MockErrorReporter extends Mock implements ErrorReporter {}
 
 void main() {
   late _MockAuthRemoteDataSource authRemoteDataSource;
   late _MockMealLocalDataSource localDataSource;
   late _MockMealRemoteDataSource remoteDataSource;
+  late _MockAnalyticsService analyticsService;
+  late _MockErrorReporter errorReporter;
+  late SharedPreferences preferences;
   late FirebaseMealRepository repository;
   late _MockUser user;
 
@@ -36,10 +44,14 @@ void main() {
     createdAtUtc: DateTime.utc(2026, 1, 1, 12),
   );
 
-  setUp(() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    preferences = await SharedPreferences.getInstance();
     authRemoteDataSource = _MockAuthRemoteDataSource();
     localDataSource = _MockMealLocalDataSource();
     remoteDataSource = _MockMealRemoteDataSource();
+    analyticsService = _MockAnalyticsService();
+    errorReporter = _MockErrorReporter();
     user = _MockUser();
 
     when(() => authRemoteDataSource.currentUser).thenReturn(user);
@@ -62,21 +74,23 @@ void main() {
         meals: any(named: 'meals'),
       ),
     ).thenAnswer((_) async {});
-
     repository = FirebaseMealRepository(
       authRemoteDataSource: authRemoteDataSource,
       localDataSource: localDataSource,
       remoteDataSource: remoteDataSource,
+      analyticsService: analyticsService,
+      errorReporter: errorReporter,
+      preferences: preferences,
     );
   });
 
   test('getMeals usa remoto e atualiza cache local', () async {
     final result = await repository.getMeals();
 
-    expect(result, [mealB]);
+    expect(result, [mealB, mealA]);
     verify(() => remoteDataSource.getMeals(uid: 'uid-1')).called(1);
     verify(
-      () => localDataSource.saveMeals(uid: 'uid-1', meals: [mealB]),
+      () => localDataSource.saveMeals(uid: 'uid-1', meals: [mealB, mealA]),
     ).called(1);
   });
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mamba_fast_tracker/core/presentation/widgets/screen_blocking_loader.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_event.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_state.dart';
@@ -25,7 +26,6 @@ class _RecoverPassPageState extends State<RecoverPassPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Recuperar senha')),
       body: BlocConsumer<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state.status == AuthFlowStatus.passwordRecoverySent) {
@@ -40,36 +40,53 @@ class _RecoverPassPageState extends State<RecoverPassPage> {
         },
         builder: (context, state) {
           final isLoading = state.status == AuthFlowStatus.loading;
-          return Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextField(
-                  controller: _emailController,
-                  decoration: const InputDecoration(labelText: 'E-mail'),
-                  keyboardType: TextInputType.emailAddress,
+          return ScreenBlockingLoader(
+            isLoading: isLoading,
+            child: SafeArea(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Recuperar senha',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 24),
+                      TextField(
+                        controller: _emailController,
+                        decoration: const InputDecoration(labelText: 'E-mail'),
+                        keyboardType: TextInputType.emailAddress,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: isLoading
+                            ? null
+                            : () {
+                                context.read<AuthBloc>().add(
+                                  AuthRecoverPasswordRequested(
+                                    _emailController.text.trim(),
+                                  ),
+                                );
+                              },
+                        child: const Text('Enviar e-mail'),
+                      ),
+                      TextButton(
+                        onPressed: () => context.go('/login'),
+                        child: const Text('Voltar para login'),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: isLoading
-                      ? null
-                      : () {
-                          context.read<AuthBloc>().add(
-                                AuthRecoverPasswordRequested(
-                                  _emailController.text.trim(),
-                                ),
-                              );
-                        },
-                  child: isLoading
-                      ? const CircularProgressIndicator()
-                      : const Text('Enviar e-mail'),
-                ),
-                TextButton(
-                  onPressed: () => context.go('/login'),
-                  child: const Text('Voltar para login'),
-                ),
-              ],
+              ),
             ),
           );
         },

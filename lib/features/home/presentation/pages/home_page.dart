@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mamba_fast_tracker/core/presentation/widgets/app_toast.dart';
+import 'package:mamba_fast_tracker/core/presentation/widgets/screen_blocking_loader.dart';
 import 'package:mamba_fast_tracker/core/theme/theme_cubit.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_event.dart';
+import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_state.dart';
 import 'package:mamba_fast_tracker/features/fasting/presentation/bloc/fasting_bloc.dart';
 import 'package:mamba_fast_tracker/features/fasting/presentation/bloc/fasting_event.dart';
 import 'package:mamba_fast_tracker/features/fasting/presentation/bloc/fasting_state.dart';
@@ -41,6 +44,15 @@ class _HomePageState extends State<HomePage> {
   late final TextEditingController _caloriesGoalController;
   late final TextEditingController _fastingGoalController;
   late final PageController _pageController;
+  List<MealEntry>? _cachedHistoryMealsRef;
+  List<FastingDayHistoryEntry>? _cachedHistoryFastingRef;
+  int? _cachedHistoryCaloriesGoal;
+  int? _cachedHistoryFastingGoal;
+  HistoryPeriod? _cachedHistoryPeriod;
+  DateTime? _cachedHistoryTodayDay;
+  FastingSessionStatus? _cachedHistorySessionStatus;
+  Duration? _cachedHistoryElapsed;
+  List<HistoryDaySummary>? _cachedVisibleSummaries;
 
   @override
   void initState() {
@@ -79,6 +91,27 @@ class _HomePageState extends State<HomePage> {
         }
         if (_fastingGoalController.text != fastingText) {
           _fastingGoalController.text = fastingText;
+        }
+        if (state.saveStatus == GoalsSaveFeedback.success) {
+          showAppToast(
+            context,
+            'Configurações salvas com sucesso',
+            type: AppToastType.success,
+          );
+          context.read<GoalsCubit>().clearSaveFeedback();
+        }
+        if (state.saveStatus == GoalsSaveFeedback.pendingSync) {
+          showAppToast(
+            context,
+            'Configuração salva localmente e pendente de sincronização',
+            type: AppToastType.info,
+          );
+          context.read<GoalsCubit>().clearSaveFeedback();
+        }
+        if (state.saveStatus == GoalsSaveFeedback.error &&
+            state.errorMessage.isNotEmpty) {
+          showAppToast(context, state.errorMessage, type: AppToastType.error);
+          context.read<GoalsCubit>().clearSaveFeedback();
         }
       },
       builder: (context, goalsState) {
@@ -149,29 +182,31 @@ class _HomePageState extends State<HomePage> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () {
-                          final calories = int.tryParse(
-                            _caloriesGoalController.text.trim(),
-                          );
-                          final fastingHours = int.tryParse(
-                            _fastingGoalController.text.trim(),
-                          );
-                          if (calories == null ||
-                              fastingHours == null ||
-                              calories < 1 ||
-                              fastingHours < 1) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Informe metas válidas'),
-                              ),
-                            );
-                            return;
-                          }
-                          context.read<GoalsCubit>().save(
-                            caloriesGoal: calories,
-                            fastingHoursGoal: fastingHours,
-                          );
-                        },
+                        onPressed: goalsState.isLoading
+                            ? null
+                            : () {
+                                final calories = int.tryParse(
+                                  _caloriesGoalController.text.trim(),
+                                );
+                                final fastingHours = int.tryParse(
+                                  _fastingGoalController.text.trim(),
+                                );
+                                if (calories == null ||
+                                    fastingHours == null ||
+                                    calories < 1 ||
+                                    fastingHours < 1) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Informe metas válidas'),
+                                    ),
+                                  );
+                                  return;
+                                }
+                                context.read<GoalsCubit>().save(
+                                  caloriesGoal: calories,
+                                  fastingHoursGoal: fastingHours,
+                                );
+                              },
                         child: const Text('Salvar metas'),
                       ),
                     ),
@@ -193,9 +228,11 @@ class _HomePageState extends State<HomePage> {
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: () => context.read<AuthBloc>().add(
-                      const AuthLogoutRequested(),
-                    ),
+                    onPressed: () async {
+                      final confirm = await _showLogoutConfirmDialog(context);
+                      if (!confirm || !context.mounted) return;
+                      context.read<AuthBloc>().add(const AuthLogoutRequested());
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Theme.of(context).colorScheme.error,
                       foregroundColor: Theme.of(context).colorScheme.onError,
@@ -212,71 +249,58 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Future<bool> _showLogoutConfirmDialog(BuildContext context) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Sair da conta'),
+          content: const Text('Confirma que deseja sair?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('OK'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancelar'),
+            ),
+          ],
+        );
+      },
+    );
+    return result ?? false;
+  }
+
   Widget _buildHistoryTab() {
     return BlocBuilder<GoalsCubit, GoalsState>(
       builder: (context, goalsState) {
         return BlocBuilder<MealBloc, MealState>(
           builder: (context, mealState) {
             return BlocBuilder<FastingBloc, FastingState>(
+              buildWhen: _shouldRebuildHeavyFastingSection,
               builder: (context, fastingState) {
                 final today = DateTime.now();
-                final todayDay = DateTime(today.year, today.month, today.day);
-                final summaries = _historySummaryBuilder.build(
+                final visibleSummaries = _getMemoizedVisibleSummaries(
                   meals: mealState.meals,
                   fastingHistory: fastingState.history,
                   caloriesGoal: goalsState.goals.caloriesGoal,
                   fastingGoalHours: goalsState.goals.fastingHoursGoal,
-                  now: DateTime.now(),
-                );
-                final filtered = _historySummaryBuilder.filterByPeriod(
-                  items: summaries,
                   period: _historyPeriod,
-                  now: DateTime.now(),
+                  now: today,
+                  fastingStatus: fastingState.session.status,
+                  fastingElapsed: fastingState.elapsed,
                 );
-                var visibleSummaries = filtered;
-                final hasActiveFasting =
-                    fastingState.session.status == FastingSessionStatus.running ||
-                    fastingState.session.status == FastingSessionStatus.paused;
-                if (hasActiveFasting) {
-                  final todayMeals = mealState.meals
-                      .where((meal) {
-                        final local = meal.createdAtUtc.toLocal();
-                        return local.year == todayDay.year &&
-                            local.month == todayDay.month &&
-                            local.day == todayDay.day;
-                      })
-                      .toList()
-                    ..sort((a, b) => a.createdAtUtc.compareTo(b.createdAtUtc));
-                  final todayCalories = todayMeals.fold<int>(
-                    0,
-                    (sum, meal) => sum + meal.calories,
-                  );
-                  final todaySummary = HistoryDaySummary(
-                    day: todayDay,
-                    meals: todayMeals,
-                    totalCalories: todayCalories,
-                    caloriesGoal: goalsState.goals.caloriesGoal,
-                    caloriesStatusLabel: todayCalories <= goalsState.goals.caloriesGoal
-                        ? 'Dentro da meta'
-                        : 'Fora da meta',
-                    fastingGoalHours: goalsState.goals.fastingHoursGoal,
-                    fastingElapsed: fastingState.elapsed,
-                    fastingStatusLabel: 'Em andamento',
-                  );
-                  visibleSummaries = [
-                    todaySummary,
-                    ...visibleSummaries.where((item) => item.day != todayDay),
-                  ];
-                }
                 if (visibleSummaries.isEmpty) {
-                  return const Center(
-                    child: Text('Sem dias registrados'),
-                  );
+                  return const Center(child: Text('Sem dias registrados'));
                 }
-                return ListView.separated(
+                return ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: visibleSummaries.length + 1,
-                  separatorBuilder: (_, _) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
                     if (index == 0) {
                       return Column(
@@ -288,7 +312,7 @@ class _HomePageState extends State<HomePage> {
                             context: context,
                             summaries: visibleSummaries,
                             period: _historyPeriod,
-                            now: DateTime.now(),
+                            now: today,
                             metric: _historyChartMetric,
                             onMetricChanged: (metric) {
                               setState(() {
@@ -322,70 +346,72 @@ class _HomePageState extends State<HomePage> {
                       context,
                       summary.fastingStatusLabel,
                     );
-                    return Card(
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () {
-                          _showDaySummary(
-                            context: context,
-                            summary: summary,
-                          );
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      _formatDay(summary.day),
-                                      style: Theme.of(
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: Card(
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () {
+                            _showDaySummary(context: context, summary: summary);
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        _formatDay(summary.day),
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.titleMedium,
+                                      ),
+                                    ),
+                                    _statusBadge(
+                                      label: summary.caloriesStatusLabel,
+                                      color: _statusColor(
                                         context,
-                                      ).textTheme.titleMedium,
+                                        summary.caloriesStatusLabel,
+                                      ),
                                     ),
-                                  ),
-                                  _statusBadge(
-                                    label: summary.caloriesStatusLabel,
-                                    color: _statusColor(
-                                      context,
-                                      summary.caloriesStatusLabel,
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  '${summary.meals.length} refeição(ões) • ${summary.totalCalories} kcal',
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  'Evolução calorias',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                                const SizedBox(height: 6),
+                                LinearProgressIndicator(
+                                  value: caloriesProgress,
+                                ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        fastingStatusText,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodySmall,
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                '${summary.meals.length} refeição(ões) • ${summary.totalCalories} kcal',
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                'Evolução calorias',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                              const SizedBox(height: 6),
-                              LinearProgressIndicator(value: caloriesProgress),
-                              const SizedBox(height: 10),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      fastingStatusText,
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodySmall,
+                                    _statusBadge(
+                                      label: summary.fastingStatusLabel,
+                                      color: fastingColor,
                                     ),
-                                  ),
-                                  _statusBadge(
-                                    label: summary.fastingStatusLabel,
-                                    color: fastingColor,
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              LinearProgressIndicator(value: fastingProgress),
-                            ],
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                LinearProgressIndicator(value: fastingProgress),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -447,6 +473,14 @@ class _HomePageState extends State<HomePage> {
       if (summary.fastingElapsed == null) return 0.0;
       return summary.fastingElapsed!.inMinutes / 60;
     }).toList();
+    final goalValues = chartDays.map((day) {
+      final summary = summaryByDay[day];
+      if (summary == null) return 0.0;
+      if (metric == WeeklyChartMetric.calories) {
+        return summary.caloriesGoal.toDouble();
+      }
+      return summary.fastingGoalHours.toDouble();
+    }).toList();
     final labels = chartDays
         .map((day) => day.day.toString().padLeft(2, '0'))
         .toList();
@@ -456,10 +490,11 @@ class _HomePageState extends State<HomePage> {
               '${day.day.toString().padLeft(2, '0')}/${day.month.toString().padLeft(2, '0')}',
         )
         .toList();
-    final maxValue = values.fold<double>(
-      0,
-      (current, value) => value > current ? value : current,
-    );
+    final goalLineValue = goalValues.isEmpty ? 0.0 : goalValues.last;
+    final maxValue = [
+      ...values,
+      goalLineValue,
+    ].fold<double>(0, (current, value) => value > current ? value : current);
     final upperBound = maxValue <= 0 ? 1.0 : maxValue * 1.2;
     final yInterval = _weeklyYAxisInterval(
       upperBound: upperBound,
@@ -477,7 +512,10 @@ class _HomePageState extends State<HomePage> {
           children: [
             Text(
               'Gráfico do período',
-              style: Theme.of(context).textTheme.titleMedium,
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
             SegmentedButton<WeeklyChartMetric>(
@@ -503,12 +541,19 @@ class _HomePageState extends State<HomePage> {
               key: const Key('history_chart_metric_label'),
               style: Theme.of(context).textTheme.bodySmall,
             ),
+            const SizedBox(height: 4),
+            Text(
+              metric == WeeklyChartMetric.calories
+                  ? 'Meta diária: ${goalLineValue.toStringAsFixed(0)} kcal'
+                  : 'Meta diária: ${goalLineValue.toStringAsFixed(0)} h',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
             const SizedBox(height: 8),
             SizedBox(
               height: 180,
               child: BarChart(
-                swapAnimationDuration: const Duration(milliseconds: 250),
-                swapAnimationCurve: Curves.easeOutCubic,
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOutCubic,
                 BarChartData(
                   minY: 0,
                   maxY: upperBound,
@@ -521,6 +566,16 @@ class _HomePageState extends State<HomePage> {
                     show: true,
                     drawVerticalLine: false,
                     horizontalInterval: yInterval,
+                  ),
+                  extraLinesData: ExtraLinesData(
+                    horizontalLines: [
+                      HorizontalLine(
+                        y: goalLineValue,
+                        color: Colors.red,
+                        strokeWidth: 2,
+                        dashArray: [6, 4],
+                      ),
+                    ],
                   ),
                   borderData: FlBorderData(show: false),
                   titlesData: FlTitlesData(
@@ -537,10 +592,7 @@ class _HomePageState extends State<HomePage> {
                         interval: yInterval,
                         getTitlesWidget: (value, meta) {
                           return Text(
-                            _weeklyYAxisLabel(
-                              value: value,
-                              metric: metric,
-                            ),
+                            _weeklyYAxisLabel(value: value, metric: metric),
                             style: Theme.of(context).textTheme.bodySmall,
                           );
                         },
@@ -604,63 +656,74 @@ class _HomePageState extends State<HomePage> {
       context: context,
       showDragHandle: true,
       builder: (sheetContext) {
+        final meals = summary.meals;
         return SafeArea(
-          child: ListView(
+          child: ListView.builder(
             padding: const EdgeInsets.all(16),
-            children: [
-              Text(
-                'Resumo de ${_formatDay(summary.day)}',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 12),
-              _summaryCard(
-                context: context,
-                title: 'Calorias do dia',
-                value: '${summary.totalCalories} kcal',
-                subtitle: 'Meta: ${summary.caloriesGoal} kcal',
-                progress: summary.caloriesGoal == 0
-                    ? 0
-                    : (summary.totalCalories / summary.caloriesGoal)
-                          .clamp(0, 1)
-                          .toDouble(),
-              ),
-              const SizedBox(height: 12),
-              _summaryCard(
-                context: context,
-                title: 'Jejum estimado',
-                value: summary.fastingElapsed == null
-                    ? 'Sem dados'
-                    : _formatDuration(summary.fastingElapsed!),
-                subtitle:
-                    'Meta: ${summary.fastingGoalHours}h • ${summary.fastingStatusLabel}',
-                progress:
-                    summary.fastingElapsed != null &&
-                        summary.fastingGoalHours > 0
-                    ? (summary.fastingElapsed!.inMinutes /
-                              (summary.fastingGoalHours * 60))
-                          .clamp(0, 1)
-                          .toDouble()
-                    : 0,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Refeições',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              ...summary.meals.map((meal) {
-                final local = meal.createdAtUtc.toLocal();
-                final hour = local.hour.toString().padLeft(2, '0');
-                final minute = local.minute.toString().padLeft(2, '0');
-                return Card(
-                  child: ListTile(
-                    title: Text(meal.name),
-                    subtitle: Text('$hour:$minute'),
-                    trailing: Text('${meal.calories} kcal'),
-                  ),
+            itemCount: 8 + meals.length,
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return Text(
+                  'Resumo de ${_formatDay(summary.day)}',
+                  style: Theme.of(context).textTheme.titleLarge,
                 );
-              }),
-            ],
+              }
+              if (index == 1 || index == 3 || index == 5) {
+                return const SizedBox(height: 12);
+              }
+              if (index == 2) {
+                return _summaryCard(
+                  context: context,
+                  title: 'Calorias do dia',
+                  value: '${summary.totalCalories} kcal',
+                  subtitle: 'Meta: ${summary.caloriesGoal} kcal',
+                  progress: summary.caloriesGoal == 0
+                      ? 0
+                      : (summary.totalCalories / summary.caloriesGoal)
+                            .clamp(0, 1)
+                            .toDouble(),
+                );
+              }
+              if (index == 4) {
+                return _summaryCard(
+                  context: context,
+                  title: 'Jejum estimado',
+                  value: summary.fastingElapsed == null
+                      ? 'Sem dados'
+                      : _formatDuration(summary.fastingElapsed!),
+                  subtitle:
+                      'Meta: ${summary.fastingGoalHours}h • ${summary.fastingStatusLabel}',
+                  progress:
+                      summary.fastingElapsed != null &&
+                          summary.fastingGoalHours > 0
+                      ? (summary.fastingElapsed!.inMinutes /
+                                (summary.fastingGoalHours * 60))
+                            .clamp(0, 1)
+                            .toDouble()
+                      : 0,
+                );
+              }
+              if (index == 6) {
+                return Text(
+                  'Refeições',
+                  style: Theme.of(context).textTheme.titleMedium,
+                );
+              }
+              if (index == 7) {
+                return const SizedBox(height: 8);
+              }
+              final meal = meals[index - 8];
+              final local = meal.createdAtUtc.toLocal();
+              final hour = local.hour.toString().padLeft(2, '0');
+              final minute = local.minute.toString().padLeft(2, '0');
+              return Card(
+                child: ListTile(
+                  title: Text(meal.name),
+                  subtitle: Text('$hour:$minute'),
+                  trailing: Text('${meal.calories} kcal'),
+                ),
+              );
+            },
           ),
         );
       },
@@ -680,6 +743,7 @@ class _HomePageState extends State<HomePage> {
         return BlocBuilder<MealBloc, MealState>(
           builder: (context, mealState) {
             return BlocBuilder<FastingBloc, FastingState>(
+              buildWhen: _shouldRebuildHeavyFastingSection,
               builder: (context, fastingState) {
                 final now = DateTime.now();
                 final todayMeals = mealState.meals.where((meal) {
@@ -751,6 +815,8 @@ class _HomePageState extends State<HomePage> {
                       context: context,
                       caloriesSeries: weeklyCalories,
                       fastingSeries: weeklyFasting,
+                      caloriesGoal: caloriesGoal,
+                      fastingGoalHours: goalsState.goals.fastingHoursGoal,
                     ),
                     const SizedBox(height: 12),
                     Card(
@@ -790,6 +856,8 @@ class _HomePageState extends State<HomePage> {
     required BuildContext context,
     required List<double> caloriesSeries,
     required List<double> fastingSeries,
+    required int caloriesGoal,
+    required int fastingGoalHours,
   }) {
     final values = _weeklyChartMetric == WeeklyChartMetric.calories
         ? caloriesSeries
@@ -797,10 +865,13 @@ class _HomePageState extends State<HomePage> {
     final metricLabel = _weeklyChartMetric == WeeklyChartMetric.calories
         ? 'kcal por dia'
         : 'horas por dia';
-    final maxValue = values.fold<double>(
-      0,
-      (current, value) => value > current ? value : current,
-    );
+    final goalValue = _weeklyChartMetric == WeeklyChartMetric.calories
+        ? caloriesGoal.toDouble()
+        : fastingGoalHours.toDouble();
+    final maxValue = [
+      ...values,
+      goalValue,
+    ].fold<double>(0, (current, value) => value > current ? value : current);
     final upperBound = maxValue <= 0 ? 1.0 : maxValue * 1.2;
     final yInterval = _weeklyYAxisInterval(
       upperBound: upperBound,
@@ -816,7 +887,10 @@ class _HomePageState extends State<HomePage> {
           children: [
             Text(
               'Evolução semanal',
-              style: Theme.of(context).textTheme.titleMedium,
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             SegmentedButton<WeeklyChartMetric>(
@@ -844,12 +918,19 @@ class _HomePageState extends State<HomePage> {
               key: const Key('weekly_chart_metric_label'),
               style: Theme.of(context).textTheme.bodySmall,
             ),
+            const SizedBox(height: 4),
+            Text(
+              _weeklyChartMetric == WeeklyChartMetric.calories
+                  ? 'Meta diária: $caloriesGoal kcal'
+                  : 'Meta diária: ${fastingGoalHours}h',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
             const SizedBox(height: 8),
             SizedBox(
               height: 180,
               child: BarChart(
-                swapAnimationDuration: const Duration(milliseconds: 250),
-                swapAnimationCurve: Curves.easeOutCubic,
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOutCubic,
                 BarChartData(
                   minY: 0,
                   maxY: upperBound,
@@ -862,6 +943,16 @@ class _HomePageState extends State<HomePage> {
                     show: true,
                     drawVerticalLine: false,
                     horizontalInterval: yInterval,
+                  ),
+                  extraLinesData: ExtraLinesData(
+                    horizontalLines: [
+                      HorizontalLine(
+                        y: goalValue,
+                        color: Colors.red,
+                        strokeWidth: 2,
+                        dashArray: [6, 4],
+                      ),
+                    ],
                   ),
                   borderData: FlBorderData(show: false),
                   titlesData: FlTitlesData(
@@ -988,10 +1079,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  bool _shouldShowHistoryBottomLabel({
-    required int index,
-    required int total,
-  }) {
+  bool _shouldShowHistoryBottomLabel({required int index, required int total}) {
     if (total <= 7) return true;
     if (index == 0 || index == total - 1) return true;
     return index % 5 == 0;
@@ -1046,10 +1134,7 @@ class _HomePageState extends State<HomePage> {
               : '${rod.toY.toStringAsFixed(1)} h';
           return BarTooltipItem(
             '$label\n$valueText',
-            const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-            ),
+            const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
           );
         },
       ),
@@ -1121,6 +1206,101 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  bool _shouldRebuildHeavyFastingSection(
+    FastingState previous,
+    FastingState current,
+  ) {
+    return previous.session != current.session ||
+        previous.history != current.history ||
+        previous.protocol != current.protocol ||
+        previous.isLoading != current.isLoading ||
+        previous.errorMessage != current.errorMessage;
+  }
+
+  List<HistoryDaySummary> _getMemoizedVisibleSummaries({
+    required List<MealEntry> meals,
+    required List<FastingDayHistoryEntry> fastingHistory,
+    required int caloriesGoal,
+    required int fastingGoalHours,
+    required HistoryPeriod period,
+    required DateTime now,
+    required FastingSessionStatus fastingStatus,
+    required Duration fastingElapsed,
+  }) {
+    final todayDay = DateTime(now.year, now.month, now.day);
+    final hasActiveFasting =
+        fastingStatus == FastingSessionStatus.running ||
+        fastingStatus == FastingSessionStatus.paused;
+    final canReuseCache =
+        identical(_cachedHistoryMealsRef, meals) &&
+        identical(_cachedHistoryFastingRef, fastingHistory) &&
+        _cachedHistoryCaloriesGoal == caloriesGoal &&
+        _cachedHistoryFastingGoal == fastingGoalHours &&
+        _cachedHistoryPeriod == period &&
+        _cachedHistoryTodayDay == todayDay &&
+        _cachedHistorySessionStatus == fastingStatus &&
+        _cachedHistoryElapsed == fastingElapsed &&
+        _cachedVisibleSummaries != null;
+
+    if (canReuseCache) {
+      return _cachedVisibleSummaries!;
+    }
+
+    final summaries = _historySummaryBuilder.build(
+      meals: meals,
+      fastingHistory: fastingHistory,
+      caloriesGoal: caloriesGoal,
+      fastingGoalHours: fastingGoalHours,
+      now: now,
+    );
+    final filtered = _historySummaryBuilder.filterByPeriod(
+      items: summaries,
+      period: period,
+      now: now,
+    );
+    var visibleSummaries = filtered;
+
+    if (hasActiveFasting) {
+      final todayMeals = meals.where((meal) {
+        final local = meal.createdAtUtc.toLocal();
+        return local.year == todayDay.year &&
+            local.month == todayDay.month &&
+            local.day == todayDay.day;
+      }).toList()..sort((a, b) => a.createdAtUtc.compareTo(b.createdAtUtc));
+      final todayCalories = todayMeals.fold<int>(
+        0,
+        (sum, meal) => sum + meal.calories,
+      );
+      final todaySummary = HistoryDaySummary(
+        day: todayDay,
+        meals: todayMeals,
+        totalCalories: todayCalories,
+        caloriesGoal: caloriesGoal,
+        caloriesStatusLabel: todayCalories <= caloriesGoal
+            ? 'Dentro da meta'
+            : 'Fora da meta',
+        fastingGoalHours: fastingGoalHours,
+        fastingElapsed: fastingElapsed,
+        fastingStatusLabel: 'Em andamento',
+      );
+      visibleSummaries = [
+        todaySummary,
+        ...visibleSummaries.where((item) => item.day != todayDay),
+      ];
+    }
+
+    _cachedHistoryMealsRef = meals;
+    _cachedHistoryFastingRef = fastingHistory;
+    _cachedHistoryCaloriesGoal = caloriesGoal;
+    _cachedHistoryFastingGoal = fastingGoalHours;
+    _cachedHistoryPeriod = period;
+    _cachedHistoryTodayDay = todayDay;
+    _cachedHistorySessionStatus = fastingStatus;
+    _cachedHistoryElapsed = fastingElapsed;
+    _cachedVisibleSummaries = visibleSummaries;
+    return visibleSummaries;
+  }
+
   @override
   Widget build(BuildContext context) {
     final tabs = [
@@ -1131,16 +1311,41 @@ class _HomePageState extends State<HomePage> {
       _buildHistoryTab(),
     ];
 
+    final goalsLoading = context.select(
+      (GoalsCubit cubit) => cubit.state.isLoading,
+    );
+    final fastingLoading = context.select(
+      (FastingBloc bloc) => bloc.state.isLoading,
+    );
+    final mealLoading = context.select((MealBloc bloc) => bloc.state.isLoading);
+    final authStatus = context.select((AuthBloc bloc) => bloc.state.status);
+    final isBlockingLoading =
+        goalsLoading ||
+        fastingLoading ||
+        mealLoading ||
+        authStatus == AuthFlowStatus.loading;
+
     return Scaffold(
       appBar: AppBar(title: Text(_titles[_currentIndex])),
-      body: PageView(
-        controller: _pageController,
-        onPageChanged: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
+      body: BlocListener<AuthBloc, AuthState>(
+        listener: (context, state) {
+          if (state.status == AuthFlowStatus.error &&
+              state.errorMessage.isNotEmpty) {
+            showAppToast(context, state.errorMessage, type: AppToastType.error);
+          }
         },
-        children: tabs,
+        child: ScreenBlockingLoader(
+          isLoading: isBlockingLoading,
+          child: PageView(
+            controller: _pageController,
+            onPageChanged: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            children: tabs,
+          ),
+        ),
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
