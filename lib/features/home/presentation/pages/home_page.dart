@@ -4,6 +4,7 @@ import 'package:mamba_fast_tracker/core/theme/theme_cubit.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_event.dart';
 import 'package:mamba_fast_tracker/features/fasting/presentation/pages/fasting_page.dart';
+import 'package:mamba_fast_tracker/features/meal/presentation/pages/meal_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({required this.enableDarkModeMenu, super.key});
@@ -73,7 +74,7 @@ class _HomePageState extends State<HomePage> {
       _buildSettingsTab(context),
       const FastingPage(),
       _buildPlaceholder('Início'),
-      _buildPlaceholder('Registro de refeições'),
+      const MealPage(),
       _buildPlaceholder('Histórico'),
     ];
 

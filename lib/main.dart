@@ -13,13 +13,12 @@ import 'package:mamba_fast_tracker/core/theme/theme_cubit.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:mamba_fast_tracker/features/fasting/presentation/bloc/fasting_bloc.dart';
 import 'package:mamba_fast_tracker/features/fasting/presentation/bloc/fasting_event.dart';
+import 'package:mamba_fast_tracker/features/meal/presentation/bloc/meal_bloc.dart';
 import 'package:mamba_fast_tracker/firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await setupDependencies();
   FlutterError.onError = (details) {
     sl<FirebaseCrashlytics>().recordFlutterFatalError(details);
@@ -42,6 +41,7 @@ class _AppBootstrapState extends State<AppBootstrap>
     with WidgetsBindingObserver {
   late final AuthBloc _authBloc;
   late final FastingBloc _fastingBloc;
+  late final MealBloc _mealBloc;
   late final ThemeCubit _themeCubit;
   late final RouterConfig<Object> _routerConfig;
 
@@ -52,6 +52,7 @@ class _AppBootstrapState extends State<AppBootstrap>
     _themeCubit = sl<ThemeCubit>()..load();
     _authBloc = sl<AuthBloc>();
     _fastingBloc = sl<FastingBloc>();
+    _mealBloc = sl<MealBloc>();
     _routerConfig = createRouter(
       _authBloc,
       featureFlagsService: sl<FeatureFlagsService>(),
@@ -70,6 +71,7 @@ class _AppBootstrapState extends State<AppBootstrap>
     _themeCubit.close();
     _authBloc.close();
     _fastingBloc.close();
+    _mealBloc.close();
     super.dispose();
   }
 
@@ -87,6 +89,7 @@ class _AppBootstrapState extends State<AppBootstrap>
       providers: [
         BlocProvider.value(value: _authBloc),
         BlocProvider.value(value: _fastingBloc),
+        BlocProvider.value(value: _mealBloc),
         BlocProvider.value(value: _themeCubit),
       ],
       child: BlocBuilder<ThemeCubit, ThemeMode>(
@@ -111,9 +114,7 @@ class _AppBootstrapState extends State<AppBootstrap>
                 ),
               ),
               textButtonTheme: TextButtonThemeData(
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.white,
-                ),
+                style: TextButton.styleFrom(foregroundColor: Colors.white),
               ),
               outlinedButtonTheme: OutlinedButtonThemeData(
                 style: OutlinedButton.styleFrom(

@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:bloc/bloc.dart';
-import 'package:flutter/foundation.dart';
 import 'package:mamba_fast_tracker/core/error/failure.dart';
 import 'package:mamba_fast_tracker/core/notifications/fasting_end_notification_scheduler.dart';
 import 'package:mamba_fast_tracker/features/fasting/domain/entities/fasting_session.dart';
@@ -13,9 +12,9 @@ class FastingBloc extends Bloc<FastingEvent, FastingState> {
   FastingBloc({
     required FastingRepository fastingRepository,
     required FastingEndNotificationScheduler endNotificationScheduler,
-  })  : _fastingRepository = fastingRepository,
-        _endNotificationScheduler = endNotificationScheduler,
-        super(FastingState.initial()) {
+  }) : _fastingRepository = fastingRepository,
+       _endNotificationScheduler = endNotificationScheduler,
+       super(FastingState.initial()) {
     on<FastingInitialized>(_onInitialized);
     on<FastingProtocolSelected>(_onProtocolSelected);
     on<FastingStarted>(_onStarted);
@@ -165,7 +164,8 @@ class FastingBloc extends Bloc<FastingEvent, FastingState> {
   ) async {
     final now = DateTime.now().toUtc();
     emit(state.copyWith(nowUtc: now));
-    if (state.session.status == FastingSessionStatus.running && state.isCompleted) {
+    if (state.session.status == FastingSessionStatus.running &&
+        state.isCompleted) {
       await _endNotificationScheduler.notifyFastingEnded();
       final completed = FastingSession(
         status: FastingSessionStatus.idle,
