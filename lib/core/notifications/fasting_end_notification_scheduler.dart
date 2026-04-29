@@ -10,12 +10,18 @@ class FastingEndNotificationScheduler {
 
   final FlutterLocalNotificationsPlugin _plugin;
 
-  static const _notificationId = 91001;
+  static const _scheduledEndNotificationId = 91001;
+  static const _startNotificationId = 91002;
+  static const _endedNotificationId = 91003;
 
   static Future<void> ensureLocalTimeZone() async {
     tz_data.initializeTimeZones();
     final zoneId = await FlutterTimezone.getLocalTimezone();
-    tz.setLocalLocation(tz.getLocation(zoneId));
+    try {
+      tz.setLocalLocation(tz.getLocation(zoneId));
+    } catch (_) {
+      tz.setLocalLocation(tz.UTC);
+    }
   }
 
   Future<void> initialize() async {
@@ -27,6 +33,9 @@ class FastingEndNotificationScheduler {
         iOS: ios,
       ),
     );
+  }
+
+  Future<void> requestRuntimePermissions() async {
     final androidImpl =
         _plugin.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
@@ -41,8 +50,44 @@ class FastingEndNotificationScheduler {
     );
   }
 
+  Future<void> notifyFastingStarted() async {
+    const androidChannelId = 'fasting_start';
+    final android = AndroidNotificationDetails(
+      androidChannelId,
+      'Jejum',
+      channelDescription: 'Alerta ao iniciar jejum',
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+    const ios = DarwinNotificationDetails();
+    await _plugin.show(
+      _startNotificationId,
+      'Jejum iniciado',
+      'Seu período de jejum começou.',
+      NotificationDetails(android: android, iOS: ios),
+    );
+  }
+
+  Future<void> notifyFastingEnded() async {
+    const androidChannelId = 'fasting_end';
+    final android = AndroidNotificationDetails(
+      androidChannelId,
+      'Jejum',
+      channelDescription: 'Alerta ao concluir jejum',
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+    const ios = DarwinNotificationDetails();
+    await _plugin.show(
+      _endedNotificationId,
+      'Jejum encerrado',
+      'Seu jejum foi encerrado.',
+      NotificationDetails(android: android, iOS: ios),
+    );
+  }
+
   Future<void> syncSchedule(FastingState state) async {
-    await _plugin.cancel(_notificationId);
+    await _plugin.cancel(_scheduledEndNotificationId);
     if (state.session.status != FastingSessionStatus.running) return;
     final remaining = state.remaining;
     if (remaining <= Duration.zero) return;
@@ -57,7 +102,7 @@ class FastingEndNotificationScheduler {
     );
     const ios = DarwinNotificationDetails();
     await _plugin.zonedSchedule(
-      _notificationId,
+      _scheduledEndNotificationId,
       'Jejum',
       'Tempo de jejum concluído',
       when,
@@ -69,6 +114,6 @@ class FastingEndNotificationScheduler {
   }
 
   Future<void> cancel() async {
-    await _plugin.cancel(_notificationId);
+    await _plugin.cancel(_scheduledEndNotificationId);
   }
 }

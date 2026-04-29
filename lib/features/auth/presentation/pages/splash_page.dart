@@ -26,15 +26,7 @@ class _SplashPageState extends State<SplashPage> {
     final flagsService = sl<FeatureFlagsService>();
     try {
       await flagsService.warmUp();
-      debugPrint(
-        '[Splash][RemoteConfig] hasRequiredFlags=${flagsService.hasRequiredFlags} '
-        'enable_dark_mode_menu=${flagsService.enableDarkModeMenu} '
-        'enable_dark_mode_menu_source=${flagsService.darkModeMenuSource} '
-        'enable_recover_password=${flagsService.enableRecoverPassword} '
-        'enable_recover_password_source=${flagsService.recoverPasswordSource} '
-        'lastFetchStatus=${flagsService.lastFetchStatus.name} '
-        'lastFetchTime=${flagsService.lastFetchTime}',
-      );
+
       if (!flagsService.hasRequiredFlags && mounted) {
         setState(() {
           _errorMessage = 'Remote Config incompleta. Usando valores padrao.';
@@ -45,7 +37,8 @@ class _SplashPageState extends State<SplashPage> {
       debugPrintStack(stackTrace: stackTrace);
       if (mounted) {
         setState(() {
-          _errorMessage = 'Falha ao carregar Remote Config. Usando valores padrao.';
+          _errorMessage =
+              'Falha ao carregar Remote Config. Usando valores padrao.';
         });
       }
     }

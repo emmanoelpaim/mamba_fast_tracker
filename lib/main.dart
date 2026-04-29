@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mamba_fast_tracker/app/router/app_router.dart';
 import 'package:mamba_fast_tracker/core/di/injection_container.dart';
+import 'package:mamba_fast_tracker/core/notifications/fasting_end_notification_scheduler.dart';
 import 'package:mamba_fast_tracker/core/feature_flags/feature_flags_service.dart';
 import 'package:mamba_fast_tracker/core/theme/theme_cubit.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_bloc.dart';
@@ -58,6 +59,9 @@ class _AppBootstrapState extends State<AppBootstrap>
         FirebaseAnalyticsObserver(analytics: sl<FirebaseAnalytics>()),
       ],
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await sl<FastingEndNotificationScheduler>().requestRuntimePermissions();
+    });
   }
 
   @override
