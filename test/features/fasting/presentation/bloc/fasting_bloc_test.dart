@@ -44,6 +44,8 @@ void main() {
     );
     when(() => repository.saveSelectedProtocol(any())).thenAnswer((_) async {});
     when(() => repository.saveSession(any())).thenAnswer((_) async {});
+    when(() => repository.getDayHistory()).thenAnswer((_) async => const []);
+    when(() => repository.saveDayHistory(any())).thenAnswer((_) async {});
   });
 
   blocTest<FastingBloc, FastingState>(

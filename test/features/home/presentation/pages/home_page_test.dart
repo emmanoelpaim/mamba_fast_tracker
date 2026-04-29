@@ -34,7 +34,7 @@ class _MockMealBloc extends MockBloc<MealEvent, MealState>
 class _MockGoalsCubit extends MockCubit<GoalsState> implements GoalsCubit {}
 
 void main() {
-  Future<void> _pumpHome(
+  Future<void> pumpHome(
     WidgetTester tester, {
     required _MockAuthBloc authBloc,
     required _MockFastingBloc fastingBloc,
@@ -82,7 +82,7 @@ void main() {
     ).thenAnswer((_) async {});
     whenListen(goalsCubit, const Stream<GoalsState>.empty());
 
-    await _pumpHome(
+    await pumpHome(
       tester,
       authBloc: authBloc,
       fastingBloc: fastingBloc,
@@ -93,7 +93,7 @@ void main() {
     expect(find.text('Configuração'), findsAtLeastNWidgets(1));
     expect(find.text('Jejum'), findsAtLeastNWidgets(1));
     expect(find.text('Início'), findsAtLeastNWidgets(1));
-    expect(find.text('Refeições'), findsOneWidget);
+    expect(find.text('Refeições'), findsAtLeastNWidgets(1));
     expect(find.text('Histórico'), findsAtLeastNWidgets(1));
     expect(find.text('Resumo de hoje'), findsOneWidget);
     expect(find.text('Calorias do dia'), findsOneWidget);
@@ -152,7 +152,7 @@ void main() {
     );
     whenListen(fastingBloc, const Stream<FastingState>.empty());
 
-    await _pumpHome(
+    await pumpHome(
       tester,
       authBloc: authBloc,
       fastingBloc: fastingBloc,
@@ -161,5 +161,128 @@ void main() {
     );
 
     expect(find.text('Dentro da meta'), findsOneWidget);
+  });
+
+  testWidgets('exibe histórico e abre resumo do dia', (
+    tester,
+  ) async {
+    final authBloc = _MockAuthBloc();
+    final fastingBloc = _MockFastingBloc();
+    final mealBloc = _MockMealBloc();
+    final goalsCubit = _MockGoalsCubit();
+    final now = DateTime.now().toUtc();
+    final yesterday = now.subtract(const Duration(days: 1));
+    when(
+      () => authBloc.state,
+    ).thenReturn(const AuthState(status: AuthFlowStatus.authenticated));
+    whenListen(authBloc, const Stream<AuthState>.empty());
+    when(() => fastingBloc.state).thenReturn(FastingState.initial());
+    whenListen(fastingBloc, const Stream<FastingState>.empty());
+    when(() => mealBloc.state).thenReturn(
+      MealState.initial().copyWith(
+        meals: [
+          MealEntry(
+            id: '1',
+            name: 'Cafe da manha',
+            calories: 400,
+            createdAtUtc: yesterday,
+          ),
+          MealEntry(
+            id: '2',
+            name: 'Almoco',
+            calories: 600,
+            createdAtUtc: yesterday.add(const Duration(hours: 4)),
+          ),
+          MealEntry(id: '3', name: 'Janta', calories: 700, createdAtUtc: now),
+        ],
+      ),
+    );
+    whenListen(mealBloc, const Stream<MealState>.empty());
+    when(() => goalsCubit.state).thenReturn(
+      GoalsState.initial().copyWith(
+        goals: const DailyGoals(caloriesGoal: 1200, fastingHoursGoal: 16),
+      ),
+    );
+    when(() => goalsCubit.load()).thenAnswer((_) async {});
+    when(
+      () => goalsCubit.save(
+        caloriesGoal: any(named: 'caloriesGoal'),
+        fastingHoursGoal: any(named: 'fastingHoursGoal'),
+      ),
+    ).thenAnswer((_) async {});
+    whenListen(goalsCubit, const Stream<GoalsState>.empty());
+
+    await pumpHome(
+      tester,
+      authBloc: authBloc,
+      fastingBloc: fastingBloc,
+      mealBloc: mealBloc,
+      goalsCubit: goalsCubit,
+    );
+
+    await tester.tap(find.text('Histórico'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('refeição(ões)'), findsNWidgets(2));
+    expect(find.textContaining('1000 kcal'), findsOneWidget);
+    await tester.tap(find.byType(InkWell).last);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Resumo de'), findsOneWidget);
+    expect(find.text('Refeições'), findsAtLeastNWidgets(1));
+  });
+
+  testWidgets('exibe jejum em andamento no histórico do dia atual', (
+    tester,
+  ) async {
+    final authBloc = _MockAuthBloc();
+    final fastingBloc = _MockFastingBloc();
+    final mealBloc = _MockMealBloc();
+    final goalsCubit = _MockGoalsCubit();
+    final now = DateTime.now().toUtc();
+    when(
+      () => authBloc.state,
+    ).thenReturn(const AuthState(status: AuthFlowStatus.authenticated));
+    whenListen(authBloc, const Stream<AuthState>.empty());
+    when(() => mealBloc.state).thenReturn(MealState.initial());
+    whenListen(mealBloc, const Stream<MealState>.empty());
+    when(() => goalsCubit.state).thenReturn(
+      GoalsState.initial().copyWith(
+        goals: const DailyGoals(caloriesGoal: 1200, fastingHoursGoal: 16),
+      ),
+    );
+    when(() => goalsCubit.load()).thenAnswer((_) async {});
+    when(
+      () => goalsCubit.save(
+        caloriesGoal: any(named: 'caloriesGoal'),
+        fastingHoursGoal: any(named: 'fastingHoursGoal'),
+      ),
+    ).thenAnswer((_) async {});
+    whenListen(goalsCubit, const Stream<GoalsState>.empty());
+    when(() => fastingBloc.state).thenReturn(
+      FastingState.initial().copyWith(
+        protocol: FastingProtocol.preset168,
+        session: FastingSession(
+          status: FastingSessionStatus.running,
+          protocol: FastingProtocol.preset168,
+          startedAtUtc: now.subtract(const Duration(hours: 3)),
+        ),
+        nowUtc: now,
+      ),
+    );
+    whenListen(fastingBloc, const Stream<FastingState>.empty());
+
+    await pumpHome(
+      tester,
+      authBloc: authBloc,
+      fastingBloc: fastingBloc,
+      mealBloc: mealBloc,
+      goalsCubit: goalsCubit,
+    );
+
+    await tester.tap(find.text('Histórico'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Em andamento'), findsAtLeastNWidgets(1));
+    expect(find.textContaining('Jejum:'), findsAtLeastNWidgets(1));
   });
 }

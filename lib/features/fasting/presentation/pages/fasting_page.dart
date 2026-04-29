@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mamba_fast_tracker/features/fasting/domain/entities/fasting_protocol.dart';
 import 'package:mamba_fast_tracker/features/fasting/domain/entities/fasting_session.dart';
@@ -192,12 +193,14 @@ class _FastingPageState extends State<FastingPage> {
               TextField(
                 controller: fastingController,
                 keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: const InputDecoration(labelText: 'Horas de jejum'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: eatingController,
                 keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: const InputDecoration(labelText: 'Horas de alimentação'),
               ),
             ],
