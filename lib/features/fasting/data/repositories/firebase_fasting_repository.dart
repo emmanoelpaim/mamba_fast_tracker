@@ -2,6 +2,7 @@ import 'package:mamba_fast_tracker/core/error/failure.dart';
 import 'package:mamba_fast_tracker/features/auth/data/datasources/auth_remote_data_source.dart';
 import 'package:mamba_fast_tracker/features/fasting/data/datasources/fasting_local_data_source.dart';
 import 'package:mamba_fast_tracker/features/fasting/data/datasources/fasting_remote_data_source.dart';
+import 'package:mamba_fast_tracker/features/fasting/domain/entities/fasting_day_history_entry.dart';
 import 'package:mamba_fast_tracker/features/fasting/domain/entities/fasting_protocol.dart';
 import 'package:mamba_fast_tracker/features/fasting/domain/entities/fasting_session.dart';
 import 'package:mamba_fast_tracker/features/fasting/domain/repositories/fasting_repository.dart';
@@ -88,6 +89,31 @@ class FirebaseFastingRepository implements FastingRepository {
     var remoteFailed = false;
     try {
       await _remoteDataSource.saveSession(uid: uid, session: session);
+    } on Failure {
+      remoteFailed = true;
+    }
+    if (remoteFailed) return;
+  }
+
+  @override
+  Future<List<FastingDayHistoryEntry>> getDayHistory() async {
+    final uid = _uidOrThrow();
+    try {
+      final remote = await _remoteDataSource.getDayHistory(uid: uid);
+      await _localDataSource.saveDayHistory(uid: uid, history: remote);
+      return remote;
+    } on Failure {
+      return _localDataSource.getDayHistory(uid: uid);
+    }
+  }
+
+  @override
+  Future<void> saveDayHistory(List<FastingDayHistoryEntry> history) async {
+    final uid = _uidOrThrow();
+    await _localDataSource.saveDayHistory(uid: uid, history: history);
+    var remoteFailed = false;
+    try {
+      await _remoteDataSource.saveDayHistory(uid: uid, history: history);
     } on Failure {
       remoteFailed = true;
     }

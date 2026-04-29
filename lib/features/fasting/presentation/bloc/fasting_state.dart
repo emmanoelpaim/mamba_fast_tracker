@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:mamba_fast_tracker/features/fasting/domain/entities/fasting_day_history_entry.dart';
 import 'package:mamba_fast_tracker/features/fasting/domain/entities/fasting_protocol.dart';
 import 'package:mamba_fast_tracker/features/fasting/domain/entities/fasting_session.dart';
 
@@ -7,6 +8,7 @@ class FastingState extends Equatable {
     required this.isLoading,
     required this.protocol,
     required this.session,
+    required this.history,
     required this.nowUtc,
     this.errorMessage = '',
   });
@@ -14,6 +16,7 @@ class FastingState extends Equatable {
   final bool isLoading;
   final FastingProtocol protocol;
   final FastingSession session;
+  final List<FastingDayHistoryEntry> history;
   final DateTime nowUtc;
   final String errorMessage;
 
@@ -43,6 +46,7 @@ class FastingState extends Equatable {
     bool? isLoading,
     FastingProtocol? protocol,
     FastingSession? session,
+    List<FastingDayHistoryEntry>? history,
     DateTime? nowUtc,
     String? errorMessage,
   }) {
@@ -50,6 +54,7 @@ class FastingState extends Equatable {
       isLoading: isLoading ?? this.isLoading,
       protocol: protocol ?? this.protocol,
       session: session ?? this.session,
+      history: history ?? this.history,
       nowUtc: nowUtc ?? this.nowUtc,
       errorMessage: errorMessage ?? this.errorMessage,
     );
@@ -60,6 +65,7 @@ class FastingState extends Equatable {
       isLoading: false,
       protocol: FastingProtocol.defaultProtocol,
       session: FastingSession.idle,
+      history: const [],
       nowUtc: DateTime.now().toUtc(),
     );
   }
@@ -69,6 +75,7 @@ class FastingState extends Equatable {
         isLoading,
         protocol,
         session,
+        history,
         nowUtc.millisecondsSinceEpoch,
         errorMessage,
       ];

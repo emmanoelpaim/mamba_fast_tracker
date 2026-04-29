@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:mamba_fast_tracker/core/error/failure.dart';
 import 'package:mamba_fast_tracker/core/notifications/fasting_end_notification_scheduler.dart';
+import 'package:mamba_fast_tracker/features/fasting/domain/entities/fasting_day_history_entry.dart';
 import 'package:mamba_fast_tracker/features/fasting/domain/entities/fasting_session.dart';
 import 'package:mamba_fast_tracker/features/fasting/domain/repositories/fasting_repository.dart';
 import 'package:mamba_fast_tracker/features/fasting/presentation/bloc/fasting_event.dart';
@@ -37,11 +38,13 @@ class FastingBloc extends Bloc<FastingEvent, FastingState> {
     try {
       final protocol = await _fastingRepository.getSelectedProtocol();
       final session = await _fastingRepository.getSession();
+      final history = await _fastingRepository.getDayHistory();
       emit(
         state.copyWith(
           isLoading: false,
           protocol: protocol,
           session: session.copyWith(protocol: protocol),
+          history: history,
           nowUtc: DateTime.now().toUtc(),
         ),
       );
@@ -136,18 +139,31 @@ class FastingBloc extends Bloc<FastingEvent, FastingState> {
     FastingStopped event,
     Emitter<FastingState> emit,
   ) async {
+    final previousSession = state.session;
+    final now = DateTime.now().toUtc();
     final shouldNotifyEnd =
-        state.session.status == FastingSessionStatus.running ||
-        state.session.status == FastingSessionStatus.paused;
+        previousSession.status == FastingSessionStatus.running ||
+        previousSession.status == FastingSessionStatus.paused;
+    var nextHistory = state.history;
+    if (shouldNotifyEnd) {
+      nextHistory = await _appendHistoryEntry(
+        session: previousSession,
+        endedAtUtc: now,
+      );
+    }
     final session = FastingSession(
       status: FastingSessionStatus.idle,
       protocol: state.protocol,
     );
     await _fastingRepository.saveSession(session);
+    if (shouldNotifyEnd) {
+      await _fastingRepository.saveDayHistory(nextHistory);
+    }
     emit(
       state.copyWith(
         session: session,
-        nowUtc: DateTime.now().toUtc(),
+        history: nextHistory,
+        nowUtc: now,
         errorMessage: '',
       ),
     );
@@ -166,16 +182,57 @@ class FastingBloc extends Bloc<FastingEvent, FastingState> {
     emit(state.copyWith(nowUtc: now));
     if (state.session.status == FastingSessionStatus.running &&
         state.isCompleted) {
+      final endedAt = now;
+      final nextHistory = await _appendHistoryEntry(
+        session: state.session,
+        endedAtUtc: endedAt,
+      );
       await _endNotificationScheduler.notifyFastingEnded();
       final completed = FastingSession(
         status: FastingSessionStatus.idle,
         protocol: state.protocol,
       );
       await _fastingRepository.saveSession(completed);
-      emit(state.copyWith(session: completed));
+      await _fastingRepository.saveDayHistory(nextHistory);
+      emit(state.copyWith(session: completed, history: nextHistory));
       _stopTicker();
       await _endNotificationScheduler.syncSchedule(state);
     }
+  }
+
+  Future<List<FastingDayHistoryEntry>> _appendHistoryEntry({
+    required FastingSession session,
+    required DateTime endedAtUtc,
+  }) async {
+    final startedAt = session.startedAtUtc;
+    if (startedAt == null) return state.history;
+    final elapsed = _calculateElapsed(session: session, nowUtc: endedAtUtc);
+    if (elapsed <= Duration.zero) return state.history;
+    final item = FastingDayHistoryEntry(
+      id: '${endedAtUtc.microsecondsSinceEpoch}_${session.protocol.label}',
+      startedAtUtc: startedAt,
+      endedAtUtc: endedAtUtc,
+      elapsedSeconds: elapsed.inSeconds,
+      status: elapsed >= session.protocol.fastingDuration
+          ? FastingDayHistoryStatus.completed
+          : FastingDayHistoryStatus.interrupted,
+    );
+    return [item, ...state.history];
+  }
+
+  Duration _calculateElapsed({
+    required FastingSession session,
+    required DateTime nowUtc,
+  }) {
+    if (session.startedAtUtc == null) return Duration.zero;
+    final end = session.status == FastingSessionStatus.paused
+        ? (session.pausedAtUtc ?? nowUtc)
+        : nowUtc;
+    final raw = end.difference(session.startedAtUtc!);
+    final paused = Duration(seconds: session.totalPausedSeconds);
+    final value = raw - paused;
+    if (value.isNegative) return Duration.zero;
+    return value;
   }
 
   Future<void> _onAlignNotifications(
