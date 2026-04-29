@@ -10,18 +10,26 @@ import 'package:mamba_fast_tracker/features/fasting/presentation/bloc/fasting_bl
 import 'package:mamba_fast_tracker/features/fasting/presentation/bloc/fasting_event.dart';
 import 'package:mamba_fast_tracker/features/fasting/presentation/bloc/fasting_state.dart';
 import 'package:mamba_fast_tracker/features/home/presentation/pages/home_page.dart';
+import 'package:mamba_fast_tracker/features/meal/presentation/bloc/meal_bloc.dart';
+import 'package:mamba_fast_tracker/features/meal/presentation/bloc/meal_event.dart';
+import 'package:mamba_fast_tracker/features/meal/presentation/bloc/meal_state.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockAuthBloc extends MockBloc<AuthEvent, AuthState>
     implements AuthBloc {}
+
 class _MockFastingBloc extends MockBloc<FastingEvent, FastingState>
     implements FastingBloc {}
+
+class _MockMealBloc extends MockBloc<MealEvent, MealState>
+    implements MealBloc {}
 
 void main() {
   testWidgets('renderiza tab bar com 5 opções', (tester) async {
     final authBloc = _MockAuthBloc();
     final fastingBloc = _MockFastingBloc();
+    final mealBloc = _MockMealBloc();
     SharedPreferences.setMockInitialValues({});
     final preferences = await SharedPreferences.getInstance();
     final themeCubit = ThemeCubit(preferences);
@@ -31,12 +39,15 @@ void main() {
     whenListen(authBloc, const Stream<AuthState>.empty());
     when(() => fastingBloc.state).thenReturn(FastingState.initial());
     whenListen(fastingBloc, const Stream<FastingState>.empty());
+    when(() => mealBloc.state).thenReturn(MealState.initial());
+    whenListen(mealBloc, const Stream<MealState>.empty());
 
     await tester.pumpWidget(
       MultiBlocProvider(
         providers: [
           BlocProvider<AuthBloc>.value(value: authBloc),
           BlocProvider<FastingBloc>.value(value: fastingBloc),
+          BlocProvider<MealBloc>.value(value: mealBloc),
           BlocProvider<ThemeCubit>.value(value: themeCubit),
         ],
         child: MaterialApp(home: HomePage(enableDarkModeMenu: true)),
