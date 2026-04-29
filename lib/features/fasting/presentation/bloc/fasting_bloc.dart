@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:bloc/bloc.dart';
+import 'package:flutter/foundation.dart';
 import 'package:mamba_fast_tracker/core/error/failure.dart';
 import 'package:mamba_fast_tracker/core/notifications/fasting_end_notification_scheduler.dart';
 import 'package:mamba_fast_tracker/features/fasting/domain/entities/fasting_session.dart';
@@ -88,6 +89,7 @@ class FastingBloc extends Bloc<FastingEvent, FastingState> {
     await _fastingRepository.saveSession(session);
     emit(state.copyWith(session: session, nowUtc: now, errorMessage: ''));
     _startTickerIfNeeded();
+    await _endNotificationScheduler.notifyFastingStarted();
     await _endNotificationScheduler.syncSchedule(state);
   }
 
@@ -135,6 +137,9 @@ class FastingBloc extends Bloc<FastingEvent, FastingState> {
     FastingStopped event,
     Emitter<FastingState> emit,
   ) async {
+    final shouldNotifyEnd =
+        state.session.status == FastingSessionStatus.running ||
+        state.session.status == FastingSessionStatus.paused;
     final session = FastingSession(
       status: FastingSessionStatus.idle,
       protocol: state.protocol,
@@ -148,6 +153,9 @@ class FastingBloc extends Bloc<FastingEvent, FastingState> {
       ),
     );
     _stopTicker();
+    if (shouldNotifyEnd) {
+      await _endNotificationScheduler.notifyFastingEnded();
+    }
     await _endNotificationScheduler.syncSchedule(state);
   }
 
@@ -158,6 +166,7 @@ class FastingBloc extends Bloc<FastingEvent, FastingState> {
     final now = DateTime.now().toUtc();
     emit(state.copyWith(nowUtc: now));
     if (state.session.status == FastingSessionStatus.running && state.isCompleted) {
+      await _endNotificationScheduler.notifyFastingEnded();
       final completed = FastingSession(
         status: FastingSessionStatus.idle,
         protocol: state.protocol,

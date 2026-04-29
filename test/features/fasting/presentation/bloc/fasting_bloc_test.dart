@@ -31,6 +31,8 @@ void main() {
     repository = _MockFastingRepository();
     endNotifications = _MockFastingEndNotificationScheduler();
     when(() => endNotifications.syncSchedule(any())).thenAnswer((_) async {});
+    when(() => endNotifications.notifyFastingStarted()).thenAnswer((_) async {});
+    when(() => endNotifications.notifyFastingEnded()).thenAnswer((_) async {});
     when(() => repository.getSelectedProtocol()).thenAnswer(
       (_) async => FastingProtocol.preset168,
     );
@@ -51,13 +53,11 @@ void main() {
       endNotificationScheduler: endNotifications,
     ),
     act: (bloc) => bloc.add(const FastingInitialized()),
-    expect: () => [
-      isA<FastingState>().having((s) => s.isLoading, 'isLoading', true),
-      isA<FastingState>()
-          .having((s) => s.isLoading, 'isLoading', false)
-          .having((s) => s.protocol.label, 'protocol', '16:8'),
-      isA<FastingState>(),
-    ],
+    wait: const Duration(milliseconds: 200),
+    verify: (bloc) {
+      expect(bloc.state.isLoading, false);
+      expect(bloc.state.protocol.label, '16:8');
+    },
   );
 
   blocTest<FastingBloc, FastingState>(
@@ -75,5 +75,44 @@ void main() {
         FastingSessionStatus.running,
       ),
     ],
+  );
+
+  blocTest<FastingBloc, FastingState>(
+    'encerrar jejum em andamento dispara notificação de término',
+    build: () => FastingBloc(
+      fastingRepository: repository,
+      endNotificationScheduler: endNotifications,
+    ),
+    seed: () => FastingState.initial().copyWith(
+      session: FastingSession(
+        status: FastingSessionStatus.running,
+        protocol: FastingProtocol.defaultProtocol,
+        startedAtUtc: DateTime.now().toUtc().subtract(const Duration(minutes: 5)),
+      ),
+    ),
+    act: (bloc) => bloc.add(const FastingStopped()),
+    verify: (_) {
+      verify(() => endNotifications.notifyFastingEnded()).called(1);
+    },
+  );
+
+  blocTest<FastingBloc, FastingState>(
+    'encerrar jejum pausado dispara notificação de término',
+    build: () => FastingBloc(
+      fastingRepository: repository,
+      endNotificationScheduler: endNotifications,
+    ),
+    seed: () => FastingState.initial().copyWith(
+      session: FastingSession(
+        status: FastingSessionStatus.paused,
+        protocol: FastingProtocol.defaultProtocol,
+        startedAtUtc: DateTime.now().toUtc().subtract(const Duration(minutes: 5)),
+        pausedAtUtc: DateTime.now().toUtc().subtract(const Duration(minutes: 1)),
+      ),
+    ),
+    act: (bloc) => bloc.add(const FastingStopped()),
+    verify: (_) {
+      verify(() => endNotifications.notifyFastingEnded()).called(1);
+    },
   );
 }

@@ -40,9 +40,10 @@ class _FastingPageState extends State<FastingPage> {
                 _protocolChip(context, state, FastingProtocol.preset1212),
                 _protocolChip(context, state, FastingProtocol.preset168),
                 _protocolChip(context, state, FastingProtocol.preset186),
-                ActionChip(
+                ChoiceChip(
                   label: const Text('Customizado'),
-                  onPressed: () async {
+                  selected: state.protocol.isCustom,
+                  onSelected: (_) async {
                     final custom = await _showCustomProtocolDialog(context);
                     if (custom != null && context.mounted) {
                       bloc.add(FastingProtocolSelected(custom));
