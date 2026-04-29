@@ -13,6 +13,7 @@ import 'package:mamba_fast_tracker/core/theme/theme_cubit.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:mamba_fast_tracker/features/fasting/presentation/bloc/fasting_bloc.dart';
 import 'package:mamba_fast_tracker/features/fasting/presentation/bloc/fasting_event.dart';
+import 'package:mamba_fast_tracker/features/goals/presentation/cubit/goals_cubit.dart';
 import 'package:mamba_fast_tracker/features/meal/presentation/bloc/meal_bloc.dart';
 import 'package:mamba_fast_tracker/firebase_options.dart';
 
@@ -42,6 +43,7 @@ class _AppBootstrapState extends State<AppBootstrap>
   late final AuthBloc _authBloc;
   late final FastingBloc _fastingBloc;
   late final MealBloc _mealBloc;
+  late final GoalsCubit _goalsCubit;
   late final ThemeCubit _themeCubit;
   late final RouterConfig<Object> _routerConfig;
 
@@ -53,6 +55,7 @@ class _AppBootstrapState extends State<AppBootstrap>
     _authBloc = sl<AuthBloc>();
     _fastingBloc = sl<FastingBloc>();
     _mealBloc = sl<MealBloc>();
+    _goalsCubit = sl<GoalsCubit>();
     _routerConfig = createRouter(
       _authBloc,
       featureFlagsService: sl<FeatureFlagsService>(),
@@ -72,6 +75,7 @@ class _AppBootstrapState extends State<AppBootstrap>
     _authBloc.close();
     _fastingBloc.close();
     _mealBloc.close();
+    _goalsCubit.close();
     super.dispose();
   }
 
@@ -90,6 +94,7 @@ class _AppBootstrapState extends State<AppBootstrap>
         BlocProvider.value(value: _authBloc),
         BlocProvider.value(value: _fastingBloc),
         BlocProvider.value(value: _mealBloc),
+        BlocProvider.value(value: _goalsCubit),
         BlocProvider.value(value: _themeCubit),
       ],
       child: BlocBuilder<ThemeCubit, ThemeMode>(
