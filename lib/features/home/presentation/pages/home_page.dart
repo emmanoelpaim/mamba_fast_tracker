@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mamba_fast_tracker/core/theme/theme_cubit.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_bloc.dart';
@@ -9,10 +10,12 @@ import 'package:mamba_fast_tracker/features/fasting/presentation/bloc/fasting_ev
 import 'package:mamba_fast_tracker/features/fasting/presentation/bloc/fasting_state.dart';
 import 'package:mamba_fast_tracker/features/fasting/domain/entities/fasting_session.dart';
 import 'package:mamba_fast_tracker/features/fasting/presentation/pages/fasting_page.dart';
+import 'package:mamba_fast_tracker/features/fasting/domain/entities/fasting_day_history_entry.dart';
 import 'package:mamba_fast_tracker/features/goals/presentation/cubit/goals_cubit.dart';
 import 'package:mamba_fast_tracker/features/goals/presentation/cubit/goals_state.dart';
 import 'package:mamba_fast_tracker/features/home/domain/entities/history_day_summary.dart';
 import 'package:mamba_fast_tracker/features/home/domain/services/history_day_summary_builder.dart';
+import 'package:mamba_fast_tracker/features/meal/domain/entities/meal_entry.dart';
 import 'package:mamba_fast_tracker/features/meal/presentation/bloc/meal_bloc.dart';
 import 'package:mamba_fast_tracker/features/meal/presentation/bloc/meal_event.dart';
 import 'package:mamba_fast_tracker/features/meal/presentation/bloc/meal_state.dart';
@@ -27,9 +30,13 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
+enum WeeklyChartMetric { calories, fasting }
+
 class _HomePageState extends State<HomePage> {
   var _currentIndex = 2;
   var _historyPeriod = HistoryPeriod.days7;
+  var _weeklyChartMetric = WeeklyChartMetric.calories;
+  var _historyChartMetric = WeeklyChartMetric.calories;
   final _historySummaryBuilder = const HistoryDaySummaryBuilder();
   late final TextEditingController _caloriesGoalController;
   late final TextEditingController _fastingGoalController;
@@ -272,7 +279,25 @@ class _HomePageState extends State<HomePage> {
                   separatorBuilder: (_, _) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
                     if (index == 0) {
-                      return _buildHistoryPeriodFilter();
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildHistoryPeriodFilter(),
+                          const SizedBox(height: 10),
+                          _buildHistoryChartCard(
+                            context: context,
+                            summaries: visibleSummaries,
+                            period: _historyPeriod,
+                            now: DateTime.now(),
+                            metric: _historyChartMetric,
+                            onMetricChanged: (metric) {
+                              setState(() {
+                                _historyChartMetric = metric;
+                              });
+                            },
+                          ),
+                        ],
+                      );
                     }
                     final summary = visibleSummaries[index - 1];
                     final caloriesProgress = summary.caloriesGoal == 0
@@ -400,6 +425,177 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _buildHistoryChartCard({
+    required BuildContext context,
+    required List<HistoryDaySummary> summaries,
+    required HistoryPeriod period,
+    required DateTime now,
+    required WeeklyChartMetric metric,
+    required ValueChanged<WeeklyChartMetric> onMetricChanged,
+  }) {
+    final chartDays = _buildHistoryChartDays(period: period, now: now);
+    final summaryByDay = <DateTime, HistoryDaySummary>{
+      for (final item in summaries)
+        DateTime(item.day.year, item.day.month, item.day.day): item,
+    };
+    final values = chartDays.map((day) {
+      final summary = summaryByDay[day];
+      if (summary == null) return 0.0;
+      if (metric == WeeklyChartMetric.calories) {
+        return summary.totalCalories.toDouble();
+      }
+      if (summary.fastingElapsed == null) return 0.0;
+      return summary.fastingElapsed!.inMinutes / 60;
+    }).toList();
+    final labels = chartDays
+        .map((day) => day.day.toString().padLeft(2, '0'))
+        .toList();
+    final tooltipLabels = chartDays
+        .map(
+          (day) =>
+              '${day.day.toString().padLeft(2, '0')}/${day.month.toString().padLeft(2, '0')}',
+        )
+        .toList();
+    final maxValue = values.fold<double>(
+      0,
+      (current, value) => value > current ? value : current,
+    );
+    final upperBound = maxValue <= 0 ? 1.0 : maxValue * 1.2;
+    final yInterval = _weeklyYAxisInterval(
+      upperBound: upperBound,
+      metric: metric,
+    );
+    final metricLabel = metric == WeeklyChartMetric.calories
+        ? 'Calorias por dia'
+        : 'Horas de jejum por dia';
+    final barColor = _metricColor(metric);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Gráfico do período',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 6),
+            SegmentedButton<WeeklyChartMetric>(
+              key: const Key('history_chart_toggle'),
+              segments: const [
+                ButtonSegment<WeeklyChartMetric>(
+                  value: WeeklyChartMetric.calories,
+                  label: Text('Calorias'),
+                ),
+                ButtonSegment<WeeklyChartMetric>(
+                  value: WeeklyChartMetric.fasting,
+                  label: Text('Jejum'),
+                ),
+              ],
+              selected: {metric},
+              onSelectionChanged: (selection) {
+                onMetricChanged(selection.first);
+              },
+            ),
+            const SizedBox(height: 8),
+            Text(
+              metricLabel,
+              key: const Key('history_chart_metric_label'),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 180,
+              child: BarChart(
+                swapAnimationDuration: const Duration(milliseconds: 250),
+                swapAnimationCurve: Curves.easeOutCubic,
+                BarChartData(
+                  minY: 0,
+                  maxY: upperBound,
+                  alignment: BarChartAlignment.spaceAround,
+                  barTouchData: _buildBarTouchData(
+                    metric: metric,
+                    labels: tooltipLabels,
+                  ),
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    horizontalInterval: yInterval,
+                  ),
+                  borderData: FlBorderData(show: false),
+                  titlesData: FlTitlesData(
+                    topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 34,
+                        interval: yInterval,
+                        getTitlesWidget: (value, meta) {
+                          return Text(
+                            _weeklyYAxisLabel(
+                              value: value,
+                              metric: metric,
+                            ),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          );
+                        },
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 22,
+                        getTitlesWidget: (value, meta) {
+                          final index = value.toInt();
+                          if (index < 0 || index >= labels.length) {
+                            return const SizedBox.shrink();
+                          }
+                          if (!_shouldShowHistoryBottomLabel(
+                            index: index,
+                            total: labels.length,
+                          )) {
+                            return const SizedBox.shrink();
+                          }
+                          return Text(
+                            labels[index],
+                            style: Theme.of(context).textTheme.bodySmall,
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  barGroups: values.asMap().entries.map((entry) {
+                    return BarChartGroupData(
+                      x: entry.key,
+                      barRods: [
+                        BarChartRodData(
+                          toY: entry.value,
+                          color: barColor,
+                          width: 12,
+                          borderRadius: BorderRadius.circular(4),
+                          backDrawRodData: BackgroundBarChartRodData(
+                            show: true,
+                            toY: upperBound,
+                            color: barColor.withValues(alpha: 0.12),
+                          ),
+                        ),
+                      ],
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showDaySummary({
     required BuildContext context,
     required HistoryDaySummary summary,
@@ -519,6 +715,14 @@ class _HomePageState extends State<HomePage> {
                   'Fora da meta' => Theme.of(context).colorScheme.error,
                   _ => Colors.amber,
                 };
+                final weeklyCalories = _buildWeeklyCaloriesSeries(
+                  meals: mealState.meals,
+                  now: now,
+                );
+                final weeklyFasting = _buildWeeklyFastingSeries(
+                  history: fastingState.history,
+                  now: now,
+                );
                 return ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
@@ -541,6 +745,12 @@ class _HomePageState extends State<HomePage> {
                       value: _formatDuration(fastingElapsed),
                       subtitle: 'Meta: ${_formatDuration(fastingGoal)}',
                       progress: fastingProgress.clamp(0, 1).toDouble(),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildWeeklyChartCard(
+                      context: context,
+                      caloriesSeries: weeklyCalories,
+                      fastingSeries: weeklyFasting,
                     ),
                     const SizedBox(height: 12),
                     Card(
@@ -573,6 +783,276 @@ class _HomePageState extends State<HomePage> {
           },
         );
       },
+    );
+  }
+
+  Widget _buildWeeklyChartCard({
+    required BuildContext context,
+    required List<double> caloriesSeries,
+    required List<double> fastingSeries,
+  }) {
+    final values = _weeklyChartMetric == WeeklyChartMetric.calories
+        ? caloriesSeries
+        : fastingSeries;
+    final metricLabel = _weeklyChartMetric == WeeklyChartMetric.calories
+        ? 'kcal por dia'
+        : 'horas por dia';
+    final maxValue = values.fold<double>(
+      0,
+      (current, value) => value > current ? value : current,
+    );
+    final upperBound = maxValue <= 0 ? 1.0 : maxValue * 1.2;
+    final yInterval = _weeklyYAxisInterval(
+      upperBound: upperBound,
+      metric: _weeklyChartMetric,
+    );
+    final barColor = _metricColor(_weeklyChartMetric);
+    final labels = _buildWeeklyDayLabels(now: DateTime.now());
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Evolução semanal',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 12),
+            SegmentedButton<WeeklyChartMetric>(
+              key: const Key('weekly_chart_toggle'),
+              segments: const [
+                ButtonSegment<WeeklyChartMetric>(
+                  value: WeeklyChartMetric.calories,
+                  label: Text('Calorias'),
+                ),
+                ButtonSegment<WeeklyChartMetric>(
+                  value: WeeklyChartMetric.fasting,
+                  label: Text('Jejum'),
+                ),
+              ],
+              selected: {_weeklyChartMetric},
+              onSelectionChanged: (selection) {
+                setState(() {
+                  _weeklyChartMetric = selection.first;
+                });
+              },
+            ),
+            const SizedBox(height: 12),
+            Text(
+              metricLabel,
+              key: const Key('weekly_chart_metric_label'),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 180,
+              child: BarChart(
+                swapAnimationDuration: const Duration(milliseconds: 250),
+                swapAnimationCurve: Curves.easeOutCubic,
+                BarChartData(
+                  minY: 0,
+                  maxY: upperBound,
+                  alignment: BarChartAlignment.spaceAround,
+                  barTouchData: _buildBarTouchData(
+                    metric: _weeklyChartMetric,
+                    labels: labels,
+                  ),
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    horizontalInterval: yInterval,
+                  ),
+                  borderData: FlBorderData(show: false),
+                  titlesData: FlTitlesData(
+                    topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 34,
+                        interval: yInterval,
+                        getTitlesWidget: (value, meta) {
+                          return Text(
+                            _weeklyYAxisLabel(
+                              value: value,
+                              metric: _weeklyChartMetric,
+                            ),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          );
+                        },
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 22,
+                        getTitlesWidget: (value, meta) {
+                          final index = value.toInt();
+                          if (index < 0 || index >= labels.length) {
+                            return const SizedBox.shrink();
+                          }
+                          return Text(
+                            labels[index],
+                            style: Theme.of(context).textTheme.bodySmall,
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  barGroups: values.asMap().entries.map((entry) {
+                    return BarChartGroupData(
+                      x: entry.key,
+                      barRods: [
+                        BarChartRodData(
+                          toY: entry.value,
+                          color: barColor,
+                          width: 14,
+                          borderRadius: BorderRadius.circular(4),
+                          backDrawRodData: BackgroundBarChartRodData(
+                            show: true,
+                            toY: upperBound,
+                            color: barColor.withValues(alpha: 0.12),
+                          ),
+                        ),
+                      ],
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<double> _buildWeeklyCaloriesSeries({
+    required List<MealEntry> meals,
+    required DateTime now,
+  }) {
+    final base = DateTime(now.year, now.month, now.day);
+    final weekStart = base.subtract(Duration(days: base.weekday % 7));
+    final values = List<double>.filled(7, 0);
+    for (final meal in meals) {
+      final local = meal.createdAtUtc.toLocal();
+      final day = DateTime(local.year, local.month, local.day);
+      final index = day.difference(weekStart).inDays;
+      if (index < 0 || index >= 7) continue;
+      values[index] += meal.calories.toDouble();
+    }
+    return values;
+  }
+
+  List<double> _buildWeeklyFastingSeries({
+    required List<FastingDayHistoryEntry> history,
+    required DateTime now,
+  }) {
+    final base = DateTime(now.year, now.month, now.day);
+    final weekStart = base.subtract(Duration(days: base.weekday % 7));
+    final values = List<double>.filled(7, 0);
+    for (final item in history) {
+      final local = item.endedAtUtc.toLocal();
+      final day = DateTime(local.year, local.month, local.day);
+      final index = day.difference(weekStart).inDays;
+      if (index < 0 || index >= 7) continue;
+      final hours = item.elapsedSeconds / 3600;
+      if (hours > values[index]) {
+        values[index] = hours;
+      }
+    }
+    return values;
+  }
+
+  List<String> _buildWeeklyDayLabels({required DateTime now}) {
+    return const ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+  }
+
+  List<DateTime> _buildHistoryChartDays({
+    required HistoryPeriod period,
+    required DateTime now,
+  }) {
+    final base = DateTime(now.year, now.month, now.day);
+    final totalDays = switch (period) {
+      HistoryPeriod.days7 => 7,
+      HistoryPeriod.days30 => 30,
+      HistoryPeriod.all => 30,
+    };
+    return List<DateTime>.generate(
+      totalDays,
+      (index) => base.subtract(Duration(days: totalDays - 1 - index)),
+    );
+  }
+
+  bool _shouldShowHistoryBottomLabel({
+    required int index,
+    required int total,
+  }) {
+    if (total <= 7) return true;
+    if (index == 0 || index == total - 1) return true;
+    return index % 5 == 0;
+  }
+
+  double _weeklyYAxisInterval({
+    required double upperBound,
+    required WeeklyChartMetric metric,
+  }) {
+    if (metric == WeeklyChartMetric.calories) {
+      if (upperBound <= 1000) return 500;
+      if (upperBound <= 2000) return 1000;
+      return 1500;
+    }
+    if (upperBound <= 8) return 4;
+    if (upperBound <= 16) return 8;
+    return 12;
+  }
+
+  String _weeklyYAxisLabel({
+    required double value,
+    required WeeklyChartMetric metric,
+  }) {
+    if (metric == WeeklyChartMetric.calories) {
+      return value.toInt().toString();
+    }
+    return '${value.toInt()}h';
+  }
+
+  Color _metricColor(WeeklyChartMetric metric) {
+    if (metric == WeeklyChartMetric.calories) {
+      return Colors.blue;
+    }
+    return Colors.deepPurple;
+  }
+
+  BarTouchData _buildBarTouchData({
+    required WeeklyChartMetric metric,
+    required List<String> labels,
+  }) {
+    return BarTouchData(
+      enabled: true,
+      touchTooltipData: BarTouchTooltipData(
+        getTooltipColor: (_) => Colors.black87,
+        tooltipPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        getTooltipItem: (group, groupIndex, rod, rodIndex) {
+          final label = group.x >= 0 && group.x < labels.length
+              ? labels[group.x]
+              : '';
+          final valueText = metric == WeeklyChartMetric.calories
+              ? '${rod.toY.toStringAsFixed(0)} kcal'
+              : '${rod.toY.toStringAsFixed(1)} h';
+          return BarTooltipItem(
+            '$label\n$valueText',
+            const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
+          );
+        },
+      ),
     );
   }
 
