@@ -1,19 +1,20 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mamba_fast_tracker/core/constants/input_limits.dart';
 import 'package:mamba_fast_tracker/core/presentation/widgets/app_toast.dart';
 import 'package:mamba_fast_tracker/core/presentation/widgets/screen_blocking_loader.dart';
 import 'package:mamba_fast_tracker/core/theme/theme_cubit.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_event.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_state.dart';
+import 'package:mamba_fast_tracker/features/fasting/domain/entities/fasting_day_history_entry.dart';
+import 'package:mamba_fast_tracker/features/fasting/domain/entities/fasting_session.dart';
 import 'package:mamba_fast_tracker/features/fasting/presentation/bloc/fasting_bloc.dart';
 import 'package:mamba_fast_tracker/features/fasting/presentation/bloc/fasting_event.dart';
 import 'package:mamba_fast_tracker/features/fasting/presentation/bloc/fasting_state.dart';
-import 'package:mamba_fast_tracker/features/fasting/domain/entities/fasting_session.dart';
 import 'package:mamba_fast_tracker/features/fasting/presentation/pages/fasting_page.dart';
-import 'package:mamba_fast_tracker/features/fasting/domain/entities/fasting_day_history_entry.dart';
 import 'package:mamba_fast_tracker/features/goals/presentation/cubit/goals_cubit.dart';
 import 'package:mamba_fast_tracker/features/goals/presentation/cubit/goals_state.dart';
 import 'package:mamba_fast_tracker/features/home/domain/entities/history_day_summary.dart';
@@ -73,13 +74,7 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  static const _titles = [
-    'Configuração',
-    'Jejum',
-    'Início',
-    'Registro de refeições',
-    'Histórico',
-  ];
+  static const _titles = ['', '', '', '', ''];
 
   Widget _buildSettingsTab(BuildContext context) {
     return BlocConsumer<GoalsCubit, GoalsState>(
@@ -122,6 +117,11 @@ class _HomePageState extends State<HomePage> {
               Expanded(
                 child: ListView(
                   children: [
+                    Text(
+                      'Configuração',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 16),
                     if (widget.enableDarkModeMenu) ...[
                       BlocBuilder<ThemeCubit, ThemeMode>(
                         builder: (context, themeMode) {
@@ -198,6 +198,26 @@ class _HomePageState extends State<HomePage> {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                       content: Text('Informe metas válidas'),
+                                    ),
+                                  );
+                                  return;
+                                }
+                                if (calories > kMaxCaloriesInput) {
+                                  showDialog<void>(
+                                    context: context,
+                                    builder: (dialogContext) => AlertDialog(
+                                      title: const Text('Calorias'),
+                                      content: Text(
+                                        'O maximo permitido e '
+                                        '$kMaxCaloriesInput kcal.',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.of(dialogContext).pop(),
+                                          child: const Text('OK'),
+                                        ),
+                                      ],
                                     ),
                                   );
                                   return;
@@ -296,7 +316,22 @@ class _HomePageState extends State<HomePage> {
                   fastingElapsed: fastingState.elapsed,
                 );
                 if (visibleSummaries.isEmpty) {
-                  return const Center(child: Text('Sem dias registrados'));
+                  return Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Histórico',
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        const SizedBox(height: 16),
+                        const Expanded(
+                          child: Center(child: Text('Sem dias registrados')),
+                        ),
+                      ],
+                    ),
+                  );
                 }
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
@@ -306,6 +341,11 @@ class _HomePageState extends State<HomePage> {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          Text(
+                            'Histórico',
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                          const SizedBox(height: 16),
                           _buildHistoryPeriodFilter(),
                           const SizedBox(height: 10),
                           _buildHistoryChartCard(
@@ -1304,11 +1344,11 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final tabs = [
-      _buildSettingsTab(context),
+      _buildHistoryTab(),
       const FastingPage(),
       _buildHomeDashboard(),
       const MealPage(),
-      _buildHistoryTab(),
+      _buildSettingsTab(context),
     ];
 
     final goalsLoading = context.select(
@@ -1326,7 +1366,11 @@ class _HomePageState extends State<HomePage> {
         authStatus == AuthFlowStatus.loading;
 
     return Scaffold(
-      appBar: AppBar(title: Text(_titles[_currentIndex])),
+      appBar: AppBar(
+        title: _titles[_currentIndex].isEmpty
+            ? null
+            : Text(_titles[_currentIndex]),
+      ),
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state.status == AuthFlowStatus.error &&
@@ -1362,9 +1406,9 @@ class _HomePageState extends State<HomePage> {
         },
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(Icons.settings_outlined),
-            activeIcon: Icon(Icons.settings),
-            label: 'Configuração',
+            icon: Icon(Icons.history_outlined),
+            activeIcon: Icon(Icons.history),
+            label: 'Histórico',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.timer_outlined),
@@ -1382,9 +1426,9 @@ class _HomePageState extends State<HomePage> {
             label: 'Refeições',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.history_outlined),
-            activeIcon: Icon(Icons.history),
-            label: 'Histórico',
+            icon: Icon(Icons.settings_outlined),
+            activeIcon: Icon(Icons.settings),
+            label: 'Config.',
           ),
         ],
       ),

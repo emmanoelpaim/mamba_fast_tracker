@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mamba_fast_tracker/core/presentation/widgets/screen_blocking_loader.dart';
+import 'package:mamba_fast_tracker/features/auth/domain/password_policy.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_event.dart';
 import 'package:mamba_fast_tracker/features/auth/presentation/bloc/auth_state.dart';
@@ -18,9 +19,21 @@ class _RegisterPageState extends State<RegisterPage> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  var _obscurePassword = true;
+
+  void _onPasswordChanged() {
+    setState(() {});
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _passwordController.addListener(_onPasswordChanged);
+  }
 
   @override
   void dispose() {
+    _passwordController.removeListener(_onPasswordChanged);
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -39,13 +52,19 @@ class _RegisterPageState extends State<RegisterPage> {
         },
         builder: (context, state) {
           final isLoading = state.status == AuthFlowStatus.loading;
+          final policy = PasswordPolicyResult.evaluate(
+            _passwordController.text,
+          );
+          final strengthLabel = PasswordPolicyResult.strengthLabel(policy);
           return ScreenBlockingLoader(
             isLoading: isLoading,
             child: SafeArea(
               child: Center(
                 child: SingleChildScrollView(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -69,8 +88,51 @@ class _RegisterPageState extends State<RegisterPage> {
                       const SizedBox(height: 12),
                       TextField(
                         controller: _passwordController,
-                        decoration: const InputDecoration(labelText: 'Senha'),
-                        obscureText: true,
+                        decoration: InputDecoration(
+                          labelText: 'Senha',
+                          suffixIcon: IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                          ),
+                        ),
+                        obscureText: _obscurePassword,
+                      ),
+                      const SizedBox(height: 12),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: policy.rulesMetCount / 3,
+                          minHeight: 6,
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        strengthLabel,
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      _RuleRow(
+                        met: policy.minLengthMet,
+                        text: 'Pelo menos 8 caracteres',
+                      ),
+                      _RuleRow(
+                        met: policy.hasUppercase,
+                        text: 'Uma letra mai\u00fascula',
+                      ),
+                      _RuleRow(
+                        met: policy.hasSpecial,
+                        text: 'Um caractere especial',
                       ),
                       const SizedBox(height: 16),
                       ElevatedButton(
@@ -81,6 +143,16 @@ class _RegisterPageState extends State<RegisterPage> {
                         onPressed: isLoading
                             ? null
                             : () {
+                                final p = PasswordPolicyResult.evaluate(
+                                  _passwordController.text.trim(),
+                                );
+                                if (!p.isValid) {
+                                  showAuthErrorToast(
+                                    context,
+                                    PasswordPolicyResult.missingRulesMessage(p),
+                                  );
+                                  return;
+                                }
                                 context.read<AuthBloc>().add(
                                   AuthRegisterRequested(
                                     name: _nameController.text.trim(),
@@ -102,6 +174,36 @@ class _RegisterPageState extends State<RegisterPage> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _RuleRow extends StatelessWidget {
+  const _RuleRow({required this.met, required this.text});
+
+  final bool met;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            met ? Icons.check_circle : Icons.circle_outlined,
+            size: 18,
+            color: met
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).hintColor,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text, style: Theme.of(context).textTheme.bodySmall),
+          ),
+        ],
       ),
     );
   }

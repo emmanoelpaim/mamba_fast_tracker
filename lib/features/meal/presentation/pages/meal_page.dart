@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mamba_fast_tracker/core/constants/input_limits.dart';
 import 'package:mamba_fast_tracker/core/presentation/widgets/screen_blocking_loader.dart';
 import 'package:mamba_fast_tracker/features/meal/domain/entities/meal_entry.dart';
 import 'package:mamba_fast_tracker/features/meal/presentation/bloc/meal_bloc.dart';
@@ -22,45 +23,60 @@ class _MealPageState extends State<MealPage> {
         return Scaffold(
           body: ScreenBlockingLoader(
             isLoading: state.isLoading,
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount:
-                  (state.meals.isEmpty && !state.isLoading
-                      ? 1
-                      : state.meals.length) +
-                  (state.errorMessage.isNotEmpty ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (state.meals.isEmpty && !state.isLoading) {
-                  if (index == 0) {
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: Center(
-                        child: Text('Nenhuma refeição cadastrada.'),
-                      ),
-                    );
-                  }
-                  return Text(
-                    state.errorMessage,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  );
-                }
-
-                if (index < state.meals.length) {
-                  return _mealTile(state.meals[index]);
-                }
-
-                return Padding(
-                  padding: const EdgeInsets.only(top: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                   child: Text(
-                    state.errorMessage,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
+                    'Refeições',
+                    style: Theme.of(context).textTheme.headlineSmall,
                   ),
-                );
-              },
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    itemCount:
+                        (state.meals.isEmpty && !state.isLoading
+                            ? 1
+                            : state.meals.length) +
+                        (state.errorMessage.isNotEmpty ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      if (state.meals.isEmpty && !state.isLoading) {
+                        if (index == 0) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 24),
+                            child: Center(
+                              child: Text('Nenhuma refeição cadastrada.'),
+                            ),
+                          );
+                        }
+                        return Text(
+                          state.errorMessage,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        );
+                      }
+
+                      if (index < state.meals.length) {
+                        return _mealTile(state.meals[index]);
+                      }
+
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Text(
+                          state.errorMessage,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
           floatingActionButton: FloatingActionButton.extended(
@@ -143,6 +159,24 @@ class _MealPageState extends State<MealPage> {
                 final name = nameController.text.trim();
                 final calories = int.tryParse(caloriesController.text.trim());
                 if (name.isEmpty || calories == null || calories <= 0) {
+                  return;
+                }
+                if (calories > kMaxCaloriesInput) {
+                  showDialog<void>(
+                    context: dialogContext,
+                    builder: (alertContext) => AlertDialog(
+                      title: const Text('Calorias'),
+                      content: Text(
+                        'O maximo permitido e $kMaxCaloriesInput kcal.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(alertContext).pop(),
+                          child: const Text('OK'),
+                        ),
+                      ],
+                    ),
+                  );
                   return;
                 }
                 if (editing == null) {

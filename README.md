@@ -1,147 +1,102 @@
-# Mamba Fast Tracker Challenge
+# Mamba Fast Tracker
 
-## 🎯 Objetivo
-Avaliar sua habilidade de:
-- Construir um app do zero
-- Definir uma arquitetura limpa e escalável
-- Gerenciar estado e persistência corretamente
-- Implementar timers e notificações
-- Criar uma boa experiência de usuário
-- Entregar um build pronto para distribuição
+Aplicativo mobile para acompanhamento de jejum intermitente, metas e registro de refeições/calorias.
 
-## 📱 Desafio
-Você deverá desenvolver o aplicativo:
+## Como rodar o projeto
 
-**Mamba Fast Tracker**
+### Pré-requisitos
+- Flutter SDK 3.10.8+
+- Dart SDK compatível com o Flutter
+- Android Studio ou VS Code com plugins Flutter/Dart
+- Emulador Android ou dispositivo físico
+- Projeto Firebase configurado para Android
 
-Um app de controle de jejum intermitente + registro de calorias, semelhante a um produto real disponível na App Store.
-O foco é funcionalidade, arquitetura e qualidade, não design complexo.
+### Passos
+```bash
+flutter pub get
+flutter run
+```
 
-## ✅ Funcionalidades obrigatórias (MVP)
+### Build Android
+```bash
+flutter build apk --release
+```
 
-### 1) Autenticação
-- Login simples (email/senha local OU Firebase Auth)
-- Persistir sessão do usuário
+## Stack escolhida
 
-### 2) Protocolos de jejum
-Usuário deve poder:
-- Selecionar protocolos pré-definidos:
-  - 12:12
-  - 16:8
-  - 18:6
-- Ou criar protocolo customizado
+- Flutter + Dart
+- Firebase (Auth, Firestore, Analytics, Crashlytics, Remote Config)
+- Gerenciamento de estado com Bloc/Cubit
+- Injeção de dependência com GetIt
+- Navegação com GoRouter
+- Persistência local com SharedPreferences
 
-### 3) Timer de jejum (core feature)
-- Iniciar jejum
-- Pausar/encerrar
-- Mostrar tempo restante e decorrido
-- Continuar funcionando em background
-- Manter estado correto ao fechar/reabrir o app
+## Arquitetura utilizada
 
-👉 Essa é a parte mais importante do desafio
+- Clean Architecture orientada por features
+- Separação em camadas: Presentation, Domain e Data
+- MVVM no fluxo de apresentação com Bloc como camada de estado
+- Repositórios para abstração entre fontes remotas e locais
+- Módulos de DI para composição e desacoplamento dos componentes
 
-### 4) Notificações
-Notificação quando:
-- jejum iniciar
-- jejum terminar
+## Decisões técnicas
 
-Pode ser:
-- local notification (aceito)
-- ou Firebase
+- Uso de Firebase para acelerar autenticação, persistência cloud e observabilidade
+- Bloc para previsibilidade de estados, testabilidade e manutenção
+- Estratégia offline-first com fallback/local cache e fila de sincronização persistente
+- Remote Config para habilitar ajustes sem necessidade de nova publicação
+- Notificações locais para eventos de jejum em background
 
-### 5) Registro de refeições
-Usuário pode:
-- Adicionar refeição
-- Informar:
-  - nome
-  - calorias
-  - horário automático
-- Editar/excluir
+## Funcionalidades e UX recentes
 
-### 6) Cálculo diário
-Exibir:
-- total de calorias do dia
-- tempo total de jejum
-- status (dentro/fora da meta)
+- **Splash:** logo do app (`assets/images/logo.webp`), atraso de 3 segundos antes de iniciar o fluxo de autenticação/flags
+- **Login e cadastro:** campos de senha com alternância de visibilidade (ícone de olho); no cadastro, regras de senha (mínimo 8 caracteres, maiúscula, caractere especial), medidor de força e validação antes de enviar; política em `lib/features/auth/domain/password_policy.dart` com testes em `test/features/auth/domain/password_policy_test.dart`
+- **Recuperação de senha:** layout alinhado ao restante do fluxo de auth
+- **Launcher (Android/iOS):** geração de ícones a partir de `assets/images/icon.png` via `flutter_launcher_icons` no `pubspec.yaml` (executar `dart run flutter_launcher_icons` após trocar a imagem)
+- **Navegação principal (Home):** aba **Histórico** na primeira posição e **Config.** na última; rótulo curto da configuração para evitar truncamento no menu inferior
+- **Títulos no corpo das abas:** **Histórico**, **Refeições** e **Configuração** aparecem como cabeçalho dentro da página; AppBar sem título nas abas correspondentes para ganhar espaço visual
+- **Calorias:** teto de **30.000 kcal** para meta diária e por refeição (`lib/core/constants/input_limits.dart`); alerta ao tentar salvar acima do limite; `GoalsCubit` limita persistência ao mesmo teto
 
-### 7) Histórico
-- Lista de dias anteriores
-- Visualizar resumo de cada dia
+## Bibliotecas utilizadas
 
-### 8) Gráfico simples
-Evolução semanal de:
-- calorias OU
-- tempo de jejum
+- `flutter_bloc` e `bloc`
+- `equatable`
+- `go_router`
+- `get_it`
+- `firebase_core`
+- `firebase_auth`
+- `cloud_firestore`
+- `firebase_analytics`
+- `firebase_crashlytics`
+- `firebase_remote_config`
+- `shared_preferences`
+- `flutter_local_notifications`
+- `timezone`
+- `flutter_timezone`
+- `fl_chart`
+- Testes: `flutter_test`, `integration_test`, `bloc_test`, `mocktail`
+- Dev (ícones): `flutter_launcher_icons`
 
-(pode usar qualquer lib de chart)
+## Trade-offs considerados
 
-### 9) Persistência local
-Dados devem ser salvos localmente.
+- SharedPreferences simplifica o armazenamento local, mas limita consultas mais complexas em comparação a SQLite/Hive
+- Firebase reduz tempo de desenvolvimento, mas aumenta acoplamento com o ecossistema Google
+- Bloc traz organização e previsibilidade, porém exige mais boilerplate
+- Foco no MVP priorizou robustez funcional sobre refinamentos visuais avançados
 
-Pode usar:
-- SQLite
-- Hive
-- AsyncStorage
-- Realm
-- similar
+## O que melhoraria com mais tempo
 
-### 🔟 Build Android
-Entregar APK ou AAB funcional.
+- Aumentar cobertura de testes de integração e cenários offline/online
+- Evoluir persistência local para banco estruturado com estratégia de migração
+- Melhorar telemetria com dashboards de produto e funil de eventos
+- Refinar UX/UI com mais microinterações e estados de carregamento/erro
+- Expandir feature flags para rollout progressivo de funcionalidades
 
-## ⭐ Diferenciais (bônus)
-Itens que aumentam sua avaliação:
-- Clean Architecture / MVVM / Bloc / Redux / similar
-- Testes unitários
-- CI/CD
-- Firebase Analytics / Crashlytics
-- Dark mode
-- Offline-first bem implementado
-- Feature flags
-- Publicação em Play Store (internal test)
-- UI bem polida
+## Tempo gasto no desafio
 
-## 🛠 Stack permitida
-Você pode escolher.
+- Aproximadamente 3 a 4 dias corridos
 
-## 📦 Entregáveis
-Enviar:
-- Link do repositório (GitHub/GitLab)
-- APK/AAB funcional
-- README contendo:
-  - Como rodar o projeto
-  - Stack escolhida
-  - Arquitetura utilizada
-  - Decisões técnicas
-  - Bibliotecas utilizadas
-  - Trade-offs considerados
-  - O que melhoraria com mais tempo
-  - Tempo gasto no desafio
-  - Link para executar o projeto
+## Link para executar o projeto
 
-## ⏱ Prazo
-3 a 4 dias corridos após o recebimento.
-
-## 🧠 Critérios de avaliação
-Avaliaremos principalmente:
-- App funcional e estável
-- Código limpo e organizado
-- Arquitetura escalável
-- Gestão correta de estado e persistência
-- Timer funcionando corretamente em background
-- UX clara
-- Qualidade do README
-- Autonomia técnica
-
-## ❌ Evite
-- Código desorganizado
-- Lógica frágil do timer
-- Dados perdidos ao fechar o app
-- README vazio
-- "Funciona só na minha máquina"
-
-## 💬 Mentalidade esperada
-Pense:
-
-"Se esse app fosse publicado amanhã para 10.000 usuários, eu teria orgulho dessa entrega?"
-
-Estamos buscando alguém que construa produtos reais, não apenas features isoladas.
+- Repositório: `https://github.com/emmanoelpaim/mamba_fast_tracker`
+- APK/AAB (release): `https://github.com/emmanoelpaim/mamba_fast_tracker/releases`

@@ -15,11 +15,7 @@ class SharedPrefsUserProfileLocalDataSource
   Future<void> cacheProfile(AppUser user) async {
     await _preferences.setString(
       _key,
-      jsonEncode({
-        'uid': user.uid,
-        'email': user.email,
-        'name': user.name,
-      }),
+      jsonEncode({'uid': user.uid, 'email': user.email, 'name': user.name}),
     );
   }
 

@@ -2,7 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mamba_fast_tracker/core/error/failure.dart';
 import 'package:mamba_fast_tracker/features/auth/data/datasources/user_profile_remote_data_source.dart';
 
-class FirebaseUserProfileRemoteDataSource implements UserProfileRemoteDataSource {
+class FirebaseUserProfileRemoteDataSource
+    implements UserProfileRemoteDataSource {
   FirebaseUserProfileRemoteDataSource(this._firebaseFirestore);
 
   final FirebaseFirestore _firebaseFirestore;
@@ -10,7 +11,10 @@ class FirebaseUserProfileRemoteDataSource implements UserProfileRemoteDataSource
   @override
   Future<Map<String, dynamic>?> getProfile({required String uid}) async {
     try {
-      final snapshot = await _firebaseFirestore.collection('users').doc(uid).get();
+      final snapshot = await _firebaseFirestore
+          .collection('users')
+          .doc(uid)
+          .get();
       return snapshot.data();
     } on FirebaseException catch (e) {
       throw DataFailure(
@@ -39,10 +43,7 @@ class FirebaseUserProfileRemoteDataSource implements UserProfileRemoteDataSource
         'unavailable' => 'Servico do Firestore indisponivel',
         _ => e.message ?? 'Falha ao salvar perfil no Firestore',
       };
-      throw DataFailure(
-        message: message,
-        code: e.code,
-      );
+      throw DataFailure(message: message, code: e.code);
     }
   }
 }

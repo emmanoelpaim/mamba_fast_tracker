@@ -5,10 +5,7 @@ enum AuthStatus { authenticated, unauthenticated }
 abstract class AuthRepository {
   Stream<AuthStatus> authStatusChanges();
   Future<AppUser?> getCurrentUser();
-  Future<void> signIn({
-    required String email,
-    required String password,
-  });
+  Future<void> signIn({required String email, required String password});
   Future<void> signUp({
     required String name,
     required String email,

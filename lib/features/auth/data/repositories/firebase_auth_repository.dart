@@ -12,9 +12,9 @@ class FirebaseAuthRepository implements AuthRepository {
     required AuthRemoteDataSource authRemoteDataSource,
     required UserProfileRemoteDataSource userProfileRemoteDataSource,
     required UserProfileLocalDataSource userProfileLocalDataSource,
-  })  : _authRemoteDataSource = authRemoteDataSource,
-        _userProfileRemoteDataSource = userProfileRemoteDataSource,
-        _userProfileLocalDataSource = userProfileLocalDataSource;
+  }) : _authRemoteDataSource = authRemoteDataSource,
+       _userProfileRemoteDataSource = userProfileRemoteDataSource,
+       _userProfileLocalDataSource = userProfileLocalDataSource;
 
   final AuthRemoteDataSource _authRemoteDataSource;
   final UserProfileRemoteDataSource _userProfileRemoteDataSource;
@@ -39,10 +39,7 @@ class FirebaseAuthRepository implements AuthRepository {
           code: 'unavailable',
         );
       default:
-        return AuthFailure(
-          message: failure.message,
-          code: failure.code,
-        );
+        return AuthFailure(message: failure.message, code: failure.code);
     }
   }
 
@@ -60,9 +57,7 @@ class FirebaseAuthRepository implements AuthRepository {
         failure.code == 'timeout';
   }
 
-  Future<T> _runWithRetry<T>(
-    Future<T> Function() operation,
-  ) async {
+  Future<T> _runWithRetry<T>(Future<T> Function() operation) async {
     Failure? lastFailure;
     for (var attempt = 0; attempt < _maxRetryAttempts; attempt++) {
       try {
@@ -86,9 +81,9 @@ class FirebaseAuthRepository implements AuthRepository {
   @override
   Stream<AuthStatus> authStatusChanges() {
     return _authRemoteDataSource.authStateChanges().map(
-          (user) =>
-              user == null ? AuthStatus.unauthenticated : AuthStatus.authenticated,
-        );
+      (user) =>
+          user == null ? AuthStatus.unauthenticated : AuthStatus.authenticated,
+    );
   }
 
   @override
@@ -110,15 +105,9 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> signIn({
-    required String email,
-    required String password,
-  }) async {
+  Future<void> signIn({required String email, required String password}) async {
     await _runWithRetry(
-      () => _authRemoteDataSource.signIn(
-        email: email,
-        password: password,
-      ),
+      () => _authRemoteDataSource.signIn(email: email, password: password),
     );
   }
 

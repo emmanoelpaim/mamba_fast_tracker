@@ -1,4 +1,5 @@
 import 'package:bloc/bloc.dart';
+import 'package:mamba_fast_tracker/core/constants/input_limits.dart';
 import 'package:mamba_fast_tracker/core/error/failure.dart';
 import 'package:mamba_fast_tracker/features/goals/domain/entities/daily_goals.dart';
 import 'package:mamba_fast_tracker/features/goals/domain/repositories/goals_repository.dart';
@@ -44,7 +45,7 @@ class GoalsCubit extends Cubit<GoalsState> {
     required int fastingHoursGoal,
   }) async {
     final normalized = DailyGoals(
-      caloriesGoal: caloriesGoal.clamp(1, 100000),
+      caloriesGoal: caloriesGoal.clamp(1, kMaxCaloriesInput),
       fastingHoursGoal: fastingHoursGoal.clamp(1, 72),
     );
     emit(
